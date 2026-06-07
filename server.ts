@@ -920,14 +920,60 @@ async function startServer() {
     return `${y}-${m}-${d}`;
   }
 
+  function getLocalDateString(): string {
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const ictDate = new Date(utc + (3600000 * 7)); // Vietnam GMT+7
+    const y = ictDate.getFullYear();
+    const m = String(ictDate.getMonth() + 1).padStart(2, '0');
+    const d = String(ictDate.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   // ==========================================
   // WEB ADMIN API LAYER
   // ==========================================
 
-  // Dữ liệu điểm danh mẫu
+  // Dữ liệu điểm danh mẫu (Lưu vết điểm danh của hội viên trong khoảng thời gian kích hoạt gói)
   let checkins = [
-    { id: 1, memberId: 1, memberName: "Nguyễn Văn A", time: new Date().toISOString() },
-    { id: 2, memberId: 3, memberName: "Lê Văn C", time: new Date().toISOString() },
+    // Nguyễn Hoài Nam (id 1) - Gói Cao Cấp 12T (01/05/2024 - 01/05/2025): Hết hạn
+    { id: 1, memberId: 1, memberName: "Nguyễn Hoài Nam", time: "2024-05-15T08:30:00.000Z" },
+    { id: 2, memberId: 1, memberName: "Nguyễn Hoài Nam", time: "2024-08-20T17:15:00.000Z" },
+    { id: 3, memberId: 1, memberName: "Nguyễn Hoài Nam", time: "2024-12-05T09:00:00.000Z" },
+    { id: 4, memberId: 1, memberName: "Nguyễn Hoài Nam", time: "2025-02-18T16:45:00.000Z" },
+    { id: 5, memberId: 1, memberName: "Nguyễn Hoài Nam", time: "2025-04-25T07:30:00.000Z" },
+
+    // Lê Văn C (id 3) - Gói Tiêu Chuẩn 6T (05/05/2024 - 05/11/2024): Hết hạn
+    { id: 6, memberId: 3, memberName: "Lê Văn C", time: "2024-05-10T10:00:00.000Z" },
+    { id: 7, memberId: 3, memberName: "Lê Văn C", time: "2024-07-14T15:30:00.000Z" },
+    { id: 8, memberId: 3, memberName: "Lê Văn C", time: "2024-09-08T18:00:00.000Z" },
+    { id: 9, memberId: 3, memberName: "Lê Văn C", time: "2024-10-30T09:15:00.000Z" },
+
+    // Phạm Văn D (id 4) - Gói Cơ Bản (15/02/2024 - 15/03/2024): Hết hạn
+    { id: 10, memberId: 4, memberName: "Phạm Văn D", time: "2024-02-18T08:45:00.000Z" },
+    { id: 11, memberId: 4, memberName: "Phạm Văn D", time: "2024-02-28T14:20:00.000Z" },
+    { id: 12, memberId: 4, memberName: "Phạm Văn D", time: "2024-03-12T17:35:00.000Z" },
+
+    // Phan Hoàng Minh (id 5) - Gói Cơ Bản (10/05/2026 - 10/06/2026): Hoạt động (Vẫn còn hạn)
+    { id: 13, memberId: 5, memberName: "Phan Hoàng Minh", time: "2026-05-15T07:15:00.000Z" },
+    { id: 14, memberId: 5, memberName: "Phan Hoàng Minh", time: "2026-05-25T11:40:00.000Z" },
+    { id: 15, memberId: 5, memberName: "Phan Hoàng Minh", time: "2026-06-05T09:10:00.000Z" },
+
+    // Trần Thị Thuý (id 6) - Gói Tiêu Chuẩn 6T (18/11/2025 - 18/05/2026): Hết hạn
+    { id: 16, memberId: 6, memberName: "Trần Thị Thuý", time: "2025-11-25T08:10:00.000Z" },
+    { id: 17, memberId: 6, memberName: "Trần Thị Thuý", time: "2026-01-10T16:15:00.000Z" },
+    { id: 18, memberId: 6, memberName: "Trần Thị Thuý", time: "2026-03-15T10:00:00.000Z" },
+    { id: 19, memberId: 6, memberName: "Trần Thị Thuý", time: "2026-05-02T18:25:00.000Z" },
+
+    // Lâm Minh Bảo (id 7) - Gói Cao Cấp 12T (10/05/2025 - 10/05/2026): Hết hạn
+    { id: 20, memberId: 7, memberName: "Lâm Minh Bảo", time: "2025-06-15T09:45:00.000Z" },
+    { id: 21, memberId: 7, memberName: "Lâm Minh Bảo", time: "2025-10-20T17:10:00.000Z" },
+    { id: 22, memberId: 7, memberName: "Lâm Minh Bảo", time: "2026-02-14T08:00:00.000Z" },
+    { id: 23, memberId: 7, memberName: "Lâm Minh Bảo", time: "2026-05-05T15:30:00.000Z" },
+
+    // Bùi Kiều My (id 8) - Gói Cơ Bản (15/03/2026 - 15/04/2026): Hết hạn
+    { id: 24, memberId: 8, memberName: "Bùi Kiều My", time: "2026-03-20T10:30:00.000Z" },
+    { id: 25, memberId: 8, memberName: "Bùi Kiều My", time: "2026-04-05T14:15:00.000Z" }
   ];
 
   // API Đăng nhập
@@ -1164,7 +1210,7 @@ async function startServer() {
     const revenue = pkg ? pkg.price : 0;
     const finalAmount = revenue - (discount || 0);
 
-    const baseDate = startDate || new Date().toISOString().split('T')[0];
+    const baseDate = getLocalDateString();
     const newExpiryDate = calculateExpiryDate(baseDate, pkg ? pkg.duration : "1 Tháng");
 
     // Cập nhật trạng thái và gói của hội viên
@@ -1288,6 +1334,9 @@ async function startServer() {
     const existingMember = members.find(m => m.phone === rest.phone && !m.deletedAt);
     let memberToSave;
 
+    const baseDate = getLocalDateString();
+    const calculatedExpiry = calculateExpiryDate(baseDate, pkg ? pkg.duration : "1 Tháng");
+
     if (existingMember) {
       // Tự động liên kết tài khoản với hồ sơ hội viên
       existingMember.fullName = rest.fullName;
@@ -1298,8 +1347,8 @@ async function startServer() {
       if (rest.gender) existingMember.gender = rest.gender;
       if (rest.address) existingMember.address = rest.address;
       existingMember.package = rest.package;
-      existingMember.registrationDate = paymentDate || new Date().toISOString().split('T')[0];
-      existingMember.expiryDate = rest.expiryDate;
+      existingMember.registrationDate = baseDate;
+      existingMember.expiryDate = calculatedExpiry;
       existingMember.status = "Hoạt động";
       existingMember.createdBy = createdBy || 'Hệ thống';
       existingMember.revenue = (existingMember.revenue || 0) + finalAmount;
@@ -1311,9 +1360,10 @@ async function startServer() {
     } else {
       const maxId = members.length > 0 ? Math.max(...members.map(m => m.id)) : 0;
       const newMember = {
-        id: maxId + 1,
         ...rest,
-        registrationDate: paymentDate || new Date().toISOString().split('T')[0],
+        id: maxId + 1,
+        registrationDate: baseDate,
+        expiryDate: calculatedExpiry,
         status: "Hoạt động",
         createdBy: createdBy || 'Hệ thống',
         revenue: finalAmount,
@@ -2342,14 +2392,14 @@ app.post("/api/sync/all", (req, res) => {
     addedInteractionsCount += 2;
   }
 
-  // Add checking logs
+  // Add checking logs for active member (member 5 - Phan Hoàng Minh is active, while member 4 is expired)
   const today = new Date().toDateString();
-  const checkedInToday = checkins.some(c => c.memberId === 4 && new Date(c.time).toDateString() === today);
+  const checkedInToday = checkins.some(c => c.memberId === 5 && new Date(c.time).toDateString() === today);
   if (!checkedInToday) {
     const newCheckin = {
       id: checkins.length + 1,
-      memberId: 4,
-      memberName: "Phạm Văn D",
+      memberId: 5,
+      memberName: "Phan Hoàng Minh",
       time: new Date().toISOString()
     };
     checkins.unshift(newCheckin);

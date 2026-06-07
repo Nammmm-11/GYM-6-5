@@ -70,6 +70,7 @@ import {
   UserCheck,
   QrCode,
   Maximize,
+  Bell,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import jsQR from "jsqr";
@@ -1488,6 +1489,15 @@ export default function App() {
   const [isMobileLoginChatOpen, setIsMobileLoginChatOpen] = useState(false);
   const [phoneTime, setPhoneTime] = useState("");
 
+  // States for changing member password
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [isChangePasswordExpanded, setIsChangePasswordExpanded] = useState(false);
+
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
@@ -2015,6 +2025,72 @@ export default function App() {
   });
 
   const [linkedMobileProfile, setLinkedMobileProfile] = useState<any | null>(null);
+  const [isMobilePersonalSheetOpen, setIsMobilePersonalSheetOpen] = useState(false);
+  const [isMobileNotificationsOpen, setIsMobileNotificationsOpen] = useState(false);
+  const [isMobileHeaderDropdownOpen, setIsMobileHeaderDropdownOpen] = useState(false);
+  const [isMobileNotificationsDropdownOpen, setIsMobileNotificationsDropdownOpen] = useState(false);
+  const [mobileNotifications, setMobileNotifications] = useState<Array<{ id: number; title: string; body: string; time: string; type: string; read: boolean }>>([
+    {
+      id: 1,
+      title: "Điểm danh thành công",
+      body: "Bạn đã quét mã chuyên cần cổng chính thành công. Chúc bạn có một buổi tập tập trung sung sức!",
+      time: "Vừa xong",
+      type: "success",
+      read: false
+    },
+    {
+      id: 2,
+      title: "Gói tập hoạt động tốt",
+      body: "Hợp đồng gói tập của hội viên đang áp dụng đầy đủ quyền lợi, không phát sinh khoản nợ nào.",
+      time: "10 phút trước",
+      type: "bill",
+      read: false
+    },
+    {
+      id: 3,
+      title: "Ưu đãi trải nghiệm phòng VIP",
+      body: "BQL gửi tặng gói trải nghiệm 1 tuần khu xông hơi đá muối muối hồng miễn phí cho tài khoản Platinum.",
+      time: "2 giờ trước",
+      type: "announcement",
+      read: true
+    },
+    {
+      id: 4,
+      title: "Lời khuyên từ Trợ lý Chatbot",
+      body: "Chào mừng bạn! Hãy đặt câu hỏi bất kỳ ở Tab Chatbot AI để nhận gợi ý lộ trình tập và chế độ ăn dinh dưỡng riêng biệt.",
+      time: "Hôm qua",
+      type: "info",
+      read: true
+    }
+  ]);
+  const [personalSheetTab, setPersonalSheetTab] = useState<"profile" | "invoices" | "settings">("profile");
+  const [mobileStaffSearch, setMobileStaffSearch] = useState("");
+  const [mobileStaffFilter, setMobileStaffFilter] = useState("ALL");
+  const [mobileTicketDepartment, setMobileTicketDepartment] = useState("RECEPTION");
+  const [mobileTicketText, setMobileTicketText] = useState("");
+  
+  // Messenger States for Direct Support Chat
+  const [activeMobileChatId, setActiveMobileChatId] = useState<string | null>(null);
+  const [isMobileStaffTyping, setIsMobileStaffTyping] = useState(false);
+  const [mobileChatInputText, setMobileChatInputText] = useState("");
+  const [mobileDirectChats, setMobileDirectChats] = useState<Record<string, Array<{ id: string; sender: "MEMBER" | "STAFF"; text: string; time: string }>>>(() => {
+    try {
+      const saved = localStorage.getItem("gym_mobile_direct_chats");
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  const isMessagingOpen = mobileActiveTab === "chatbot" || (mobileActiveTab === "profile" && activeMobileChatId !== null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("gym_mobile_direct_chats", JSON.stringify(mobileDirectChats));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [mobileDirectChats]);
   const [isFaceAnalyzing, setIsFaceAnalyzing] = useState(false);
 
   useEffect(() => {
@@ -4867,6 +4943,7 @@ export default function App() {
       expiryDate: "2026-10-15",
       address: "123 Quận 1, TP.HCM",
       avatar: user.avatar,
+      password: (user as any).password || "123456",
     };
 
     const existingDbMember = members.find(m => m.id === currentMemberId || (user && m.phone === user.username));
@@ -4902,6 +4979,61 @@ export default function App() {
         addNotification("Lỗi kết nối khi gửi phản hồi", "error");
       } finally {
         setIsFeedbackSubmitting(false);
+      }
+    };
+
+    const handleMemberChangePassword = async () => {
+      if (!user) return;
+      if (!currentPassword) {
+        addNotification("Vui lòng nhập mật khẩu hiện tại!", "error");
+        return;
+      }
+      if (!newPassword) {
+        addNotification("Vui lòng nhập mật khẩu mới!", "error");
+        return;
+      }
+      if (newPassword !== confirmNewPassword) {
+        addNotification("Mật khẩu mới và xác nhận mật khẩu không khớp!", "error");
+        return;
+      }
+      if (newPassword.length < 6) {
+        addNotification("Mật khẩu mới phải từ 6 ký tự trở lên!", "error");
+        return;
+      }
+      const actualCurrentPass = activeMemberData.password || "123456";
+      if (currentPassword !== actualCurrentPass) {
+        addNotification("Mật khẩu hiện tại không chính xác!", "error");
+        return;
+      }
+      
+      setIsChangingPassword(true);
+      try {
+        const res = await fetch(`/api/members/${activeMemberData.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: newPassword }),
+        });
+        if (res.ok) {
+          addNotification("Hệ thống đã cập nhật mật khẩu mới thành công!", "success");
+          setCurrentPassword("");
+          setNewPassword("");
+          setConfirmNewPassword("");
+          fetchData(); // Sync client lists
+          // Sync active user session credentials
+          setUser((prev: any) => {
+            if (prev) {
+              return { ...prev, password: newPassword };
+            }
+            return prev;
+          });
+        } else {
+          const err = await res.json();
+          addNotification(err.message || "Thay đổi mật khẩu bẻ gãy", "error");
+        }
+      } catch (e) {
+        addNotification("Lỗi kết nối máy chủ quản trì", "error");
+      } finally {
+        setIsChangingPassword(false);
       }
     };
 
@@ -4960,38 +5092,256 @@ export default function App() {
           </div>
         </div>
 
-        {/* Floating Desktop Toggle Switch Banner (Exit Device frame emulation) */}
-        {(forceTabletMemberPortal || authViewMode === "mobile") && !isMobileViewport && (
-          <div className="bg-[#CCFF00]/10 border-b border-[#CCFF00]/20 py-2 px-4 flex justify-between items-center shrink-0 relative z-50 select-none font-sans">
-            <span className="text-[9px] font-mono font-black text-white uppercase">VIRTUAL_DEVICE_EMULATION</span>
-            <div className="flex gap-2">
-              {authViewMode === "mobile" && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthViewMode("web");
-                    addNotification("Quay lại giao diện chính Web.");
-                  }}
-                  className="text-[9px] font-mono font-black text-white border border-white/20 hover:bg-white hover:text-black hover:border-white transition-all px-2.5 py-0.5 rounded uppercase cursor-pointer z-50"
-                >
-                  🖥️ WEB PORTAL
-                </button>
-              )}
-              {forceTabletMemberPortal && (
-                <button
-                  type="button"
-                  onClick={() => setForceTabletMemberPortal(false)}
-                  className="text-[9px] font-mono font-black text-[#CCFF00] border border-[#CCFF00]/30 hover:bg-[#CCFF00] hover:text-black transition-colors px-2 py-0.5 rounded uppercase cursor-pointer"
-                >
-                  [ MENU WEB ADMIN ]
-                </button>
-              )}
+
+
+        {/* NEW Elegant Persistent Application Top Bar */}
+        <div className={`justify-between items-center px-5 py-3 border-b border-white/5 bg-zinc-950/85 backdrop-blur-md sticky top-0 z-40 shrink-0 ${isMessagingOpen ? 'hidden' : 'flex'}`}>
+          <div className="flex items-center gap-1.5">
+            <Dumbbell className="w-4.5 h-4.5 text-[#CCFF00]" />
+            <span className="text-xs font-black tracking-widest italic uppercase text-white font-display">FIT.GYM APP</span>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            
+            {/* 1. STANDALONE DROPDOWN: THÔNG BÁO (NOTIFICATION BELL) */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileNotificationsDropdownOpen(!isMobileNotificationsDropdownOpen);
+                  setIsMobileHeaderDropdownOpen(false); // Close other dropdown
+                  // Mark as read when opened
+                  setMobileNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                }}
+                className={`w-9 h-9 rounded-full border bg-zinc-900 overflow-visible relative active:scale-95 transition-all text-center flex items-center justify-center shrink-0 cursor-pointer ${
+                  isMobileNotificationsDropdownOpen 
+                    ? 'border-[#CCFF00] text-[#CCFF00] shadow-[0_0_12px_rgba(204,255,0,0.3)]' 
+                    : 'border-white/10 text-zinc-400 hover:border-white/20 hover:text-white'
+                }`}
+                title="Thông báo, tin nhắn"
+              >
+                <Bell className={`w-4 h-4 transition-transform duration-300 ${isMobileNotificationsDropdownOpen ? 'scale-110' : ''}`} />
+                {mobileNotifications.some(n => !n.read) && (
+                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-zinc-950 animate-pulse flex items-center justify-center text-[7px] text-white font-mono font-black">
+                    {mobileNotifications.filter(n => !n.read).length}
+                  </span>
+                )}
+              </button>
+
+              {/* Floating Notifications Dropdown Panel */}
+              <AnimatePresence>
+                {isMobileNotificationsDropdownOpen && (
+                  <>
+                    <span 
+                      className="fixed inset-0 z-40 bg-transparent cursor-default" 
+                      onClick={() => setIsMobileNotificationsDropdownOpen(false)} 
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 12, scale: 0.95 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                      className="absolute right-0 mt-3 w-80 bg-zinc-950/95 backdrop-blur-xl border border-white/10 rounded-2xl p-3 shadow-[0_20px_50px_rgba(0,0,0,0.9)] z-50 font-sans"
+                    >
+                      <div className="flex justify-between items-center pb-2.5 border-b border-white/5 mb-2.5 px-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 bg-[#CCFF00] rounded-full animate-ping" />
+                          <span className="text-[10px] font-mono tracking-widest text-[#CCFF00] font-black uppercase">HỘP THƯ BÁO CÁO</span>
+                        </div>
+                        {mobileNotifications.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileNotifications([]);
+                              setIsMobileNotificationsDropdownOpen(false);
+                            }}
+                            className="text-[9px] font-mono font-bold text-zinc-500 hover:text-red-400 transition-colors uppercase cursor-pointer"
+                          >
+                            Xóa tất cả
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-0.5">
+                        {mobileNotifications.length > 0 ? (
+                          mobileNotifications.map((notif) => {
+                            let iconEl = <Bell className="w-3.5 h-3.5 text-zinc-400" />;
+                            let sideColor = "border-l-zinc-700";
+                            let iconBg = "bg-zinc-900";
+                            
+                            if (notif.type === "success") {
+                              iconEl = <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />;
+                              sideColor = "border-l-emerald-500 shadow-[inset_4px_0_0_rgba(16,185,129,0.1)]";
+                              iconBg = "bg-emerald-950/30 text-emerald-400";
+                            } else if (notif.type === "bill") {
+                              iconEl = <CreditCard className="w-3.5 h-3.5 text-amber-400" />;
+                              sideColor = "border-l-amber-500 shadow-[inset_4px_0_0_rgba(245,158,11,0.1)]";
+                              iconBg = "bg-amber-950/30 text-amber-400";
+                            } else if (notif.type === "announcement") {
+                              iconEl = <Sparkles className="w-3.5 h-3.5 text-[#CCFF00]" />;
+                              sideColor = "border-l-[#CCFF00] shadow-[inset_4px_0_0_rgba(204,255,0,0.1)]";
+                              iconBg = "bg-[#CCFF00]/10 text-[#CCFF00]";
+                            }
+
+                            return (
+                              <div
+                                key={notif.id}
+                                className={`flex gap-3 p-2.5 rounded-xl border border-white/5 bg-zinc-900/60 text-left text-zinc-300 hover:text-white transition-all border-l-3 ${sideColor} group`}
+                              >
+                                <div className={`w-7 h-7 rounded-lg ${iconBg} flex items-center justify-center shrink-0`}>
+                                  {iconEl}
+                                </div>
+                                <div className="space-y-0.5 min-w-0 flex-1">
+                                  <p className="text-[11px] font-black uppercase leading-none tracking-tight text-white group-hover:text-[#CCFF00] transition-colors">{notif.title}</p>
+                                  <p className="text-[10px] leading-snug text-zinc-400 mt-1">{notif.body}</p>
+                                  <span className="block text-[8px] font-mono text-zinc-500 font-bold mt-1.5">{notif.time}</span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="py-8 text-center flex flex-col items-center justify-center gap-2">
+                            <Bell className="w-8 h-8 text-zinc-850 stroke-[1.2]" />
+                            <span className="text-zinc-500 font-mono text-[9px] uppercase tracking-wider">Hộp thư hệ thống rỗng</span>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* 2. STANDALONE DROPDOWN: HỒ SƠ & CÀI ĐẶT (AVATAR & CHEVRONDOWN) */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileHeaderDropdownOpen(!isMobileHeaderDropdownOpen);
+                  setIsMobileNotificationsDropdownOpen(false); // Close other dropdown
+                }}
+                className={`flex items-center gap-2 p-1 pl-1 bg-zinc-950 hover:bg-zinc-900 rounded-full border transition-all active:scale-95 cursor-pointer ${
+                  isMobileHeaderDropdownOpen 
+                    ? 'border-[#CCFF00] shadow-[0_0_12px_rgba(204,255,0,0.2)]' 
+                    : 'border-white/10 hover:border-white/25'
+                }`}
+                title="Hồ sơ cá nhân & Cài đặt"
+              >
+                <div className="w-7 h-7 rounded-full overflow-hidden border border-white/10 relative shrink-0">
+                  {activeMemberData.avatar ? (
+                    <img src={activeMemberData.avatar} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[#CCFF00] font-black text-[9px] bg-zinc-900 uppercase select-none">
+                      {activeMemberData.fullName ? activeMemberData.fullName.trim().charAt(0).toUpperCase() : "M"}
+                    </div>
+                  )}
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform duration-300 pr-1 ${isMobileHeaderDropdownOpen ? 'rotate-180 text-[#CCFF00]' : ''}`} />
+              </button>
+
+              {/* Floating Profile & Features Dropdown Menu */}
+              <AnimatePresence>
+                {isMobileHeaderDropdownOpen && (
+                  <>
+                    <span 
+                      className="fixed inset-0 z-40 bg-transparent cursor-default" 
+                      onClick={() => setIsMobileHeaderDropdownOpen(false)} 
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 12, scale: 0.95 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                      className="absolute right-0 mt-3 w-60 bg-zinc-950/95 backdrop-blur-xl border border-white/10 rounded-2xl p-2 shadow-[0_20px_50px_rgba(0,0,0,0.9)] z-50 font-sans text-left"
+                    >
+                      {/* Compact user header */}
+                      <div className="px-3 py-2.5 border-b border-white/5 mb-1.5 flex flex-col items-start gap-0.5">
+                        <span className="block text-[8px] font-mono tracking-widest text-[#CCFF00] font-black uppercase leading-tight italic animate-pulse">HỘI VIÊN CLASS_PLATINUM</span>
+                        <p className="text-[11px] font-black text-white uppercase truncate mt-0.5 w-full">{activeMemberData.fullName}</p>
+                      </div>
+
+                      <div className="space-y-0.5">
+                        {/* Personal profile trigger */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileHeaderDropdownOpen(false);
+                            setIsMobilePersonalSheetOpen(true);
+                            setPersonalSheetTab("profile");
+                          }}
+                          className="w-full flex items-center px-2.5 py-2.5 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900/80 hover:scale-[1.02] active:scale-[0.98] text-left text-[11px] font-bold tracking-tight transition-all cursor-pointer group"
+                        >
+                          <div className="flex items-center gap-3 w-full">
+                            <div className="w-6 h-6 rounded-lg bg-zinc-900 flex items-center justify-center shrink-0 border border-white/5 group-hover:bg-[#CCFF00]/10 group-hover:border-[#CCFF00]/25 transition-colors">
+                              <UserCheck className="w-3.5 h-3.5 text-zinc-400 group-hover:text-[#CCFF00] transition-colors" />
+                            </div>
+                            <span className="flex-1">Hồ sơ cá nhân</span>
+                          </div>
+                        </button>
+
+                        {/* Invoices trigger */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileHeaderDropdownOpen(false);
+                            setIsMobilePersonalSheetOpen(true);
+                            setPersonalSheetTab("invoices");
+                          }}
+                          className="w-full flex items-center px-2.5 py-2.5 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900/80 hover:scale-[1.02] active:scale-[0.98] text-left text-[11px] font-bold tracking-tight transition-all cursor-pointer group"
+                        >
+                          <div className="flex items-center gap-3 w-full">
+                            <div className="w-6 h-6 rounded-lg bg-zinc-900 flex items-center justify-center shrink-0 border border-white/5 group-hover:bg-[#CCFF00]/10 group-hover:border-[#CCFF00]/25 transition-colors">
+                              <CreditCard className="w-3.5 h-3.5 text-zinc-400 group-hover:text-[#CCFF00] transition-colors" />
+                            </div>
+                            <span className="flex-1">Lịch sử thanh toán</span>
+                          </div>
+                        </button>
+
+                        {/* Settings trigger */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileHeaderDropdownOpen(false);
+                            setIsMobilePersonalSheetOpen(true);
+                            setPersonalSheetTab("settings");
+                          }}
+                          className="w-full flex items-center px-2.5 py-2.5 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-900/80 hover:scale-[1.02] active:scale-[0.98] text-left text-[11px] font-bold tracking-tight transition-all cursor-pointer group"
+                        >
+                          <div className="flex items-center gap-3 w-full">
+                            <div className="w-6 h-6 rounded-lg bg-zinc-900 flex items-center justify-center shrink-0 border border-white/5 group-hover:bg-[#CCFF00]/10 group-hover:border-[#CCFF00]/25 transition-colors">
+                              <Settings className="w-3.5 h-3.5 text-zinc-400 group-hover:text-[#CCFF00] transition-colors" />
+                            </div>
+                            <span className="flex-1">Cài đặt bảo mật</span>
+                          </div>
+                        </button>
+
+                        {/* Logout trigger */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsMobileHeaderDropdownOpen(false);
+                            handleLogout();
+                          }}
+                          className="w-full flex items-center px-2.5 py-2.5 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/10 hover:scale-[1.02] active:scale-[0.98] text-left text-[11px] font-bold tracking-tight transition-all cursor-pointer group border-t border-white/5 mt-1.5 pt-2"
+                        >
+                          <div className="flex items-center gap-3 w-full">
+                            <div className="w-6 h-6 rounded-lg bg-red-950/10 flex items-center justify-center shrink-0 border border-red-500/10 group-hover:bg-red-500/20 group-hover:border-red-500/25 transition-colors">
+                              <LogOut className="w-3.5 h-3.5 text-red-500 group-hover:text-red-400 transition-colors" />
+                            </div>
+                            <span className="flex-1">Đăng xuất cổng</span>
+                          </div>
+                        </button>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </div>
           </div>
-        )}
+        </div>
 
         {/* MAIN BODY CONTENTS - TAB SWITCHER */}
-        <div className={`flex-1 ${mobileActiveTab === 'chatbot' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'} custom-scrollbar px-5 py-4 relative bg-zinc-950/20`}>
+        <div className={`flex-1 w-full ${isMessagingOpen ? 'overflow-hidden flex flex-col px-4 py-2 pt-1 pb-4' : 'overflow-y-auto px-5 py-4'} custom-scrollbar relative bg-zinc-950/20`}>
           <AnimatePresence mode="wait">
             
             {/* TAB 1: HOME PANEL */}
@@ -5006,17 +5356,8 @@ export default function App() {
                 {/* Header Profile Greeting */}
                 <div className="flex justify-between items-center">
                   <div>
-                    <span className="block text-[9px] font-mono font-black text-[#CCFF00] uppercase tracking-widest italic">HỘI VIÊN CLASS_PLATINUM</span>
+                    <span className="block text-[9px] font-mono font-black text-[#CCFF00] uppercase tracking-widest italic animate-pulse">HỘI VIÊN CLASS_PLATINUM</span>
                     <h3 className="text-xl font-black italic uppercase tracking-tighter text-white">XIN CHÀO, {activeMemberData.fullName.split(" ").slice(-1)[0]}!</h3>
-                  </div>
-                  <div className="w-10 h-10 rounded-full border border-white/10 bg-zinc-900 overflow-hidden shrink-0 shadow-lg">
-                    {activeMemberData.avatar ? (
-                      <img src={activeMemberData.avatar} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-zinc-500">
-                        <UserIcon className="w-5 h-5" />
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -5073,6 +5414,18 @@ export default function App() {
                               const checkinData = await res.json();
                               setCheckins(prev => [checkinData, ...prev]);
                               addNotification("Quét cổng thành công! Chào mừng hội viên vào phòng Gym.", "success");
+                              
+                              // Dispatch live notification
+                              const checkinNotif = {
+                                id: Date.now(),
+                                title: "CỔNG CHẤP THUẬN: ĐIỂM DANH THÀNH CÔNG",
+                                body: `Hệ thống vừa duyệt quét mã QR vào cổng của bạn thành công lúc ${new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}. Hãy trải nghiệm buổi tập hiệu quả!`,
+                                time: "Vừa xong",
+                                type: "success",
+                                read: false
+                              };
+                              setMobileNotifications(prev => [checkinNotif, ...prev]);
+                              
                               fetchData(); // sync
                             } else {
                               const errData = await res.json();
@@ -5107,7 +5460,7 @@ export default function App() {
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
                       <Star className="w-4 h-4 text-[#CCFF00]" />
-                      <span className="text-[10px] font-mono font-black uppercase tracking-widest text-zinc-400">Gói dịch vụ kích hoạt</span>
+                      <span className="text-[10px] font-mono font-black uppercase tracking-widest text-[#CCFF00]">Gói dịch vụ kích hoạt</span>
                     </div>
                     <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
                       isUnregistered 
@@ -5260,14 +5613,24 @@ export default function App() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="space-y-3 pb-8 flex-1 flex flex-col overflow-hidden"
+                className="space-y-3 pb-2 flex-1 flex flex-col overflow-hidden h-full w-full"
               >
-                <div>
-                  <span className="block text-[9px] font-mono font-black text-[#CCFF00] uppercase tracking-widest italic">TRỢ LÝ SỨC KHỎE VÀ TẬP LUYỆN</span>
-                  <h3 className="text-xl font-black italic uppercase tracking-tighter text-white">CHATBOT HLVI AI</h3>
+                <div className="flex items-center gap-3 w-full">
+                  <button 
+                    type="button"
+                    onClick={() => setMobileActiveTab("home")}
+                    className="w-8 h-8 rounded-full bg-zinc-900 hover:bg-zinc-800 flex items-center justify-center border border-white/5 transition-colors cursor-pointer shrink-0"
+                    title="Quay lại trang chủ"
+                  >
+                    <ArrowLeft className="w-4 h-4 text-zinc-300" />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-[9px] font-mono font-black text-[#CCFF00] uppercase tracking-widest italic leading-none">TRỢ LÝ SỨC KHỎE VÀ TẬP LUYỆN</span>
+                    <h3 className="text-xl font-black italic uppercase tracking-tighter text-white truncate mt-0.5">CHATBOT HLVI AI</h3>
+                  </div>
                 </div>
 
-                <div className="flex-1 flex flex-col gap-3 justify-between relative bg-zinc-900/30 p-3 rounded-[1.8rem] border border-white/5 overflow-hidden">
+                <div className="flex-1 flex flex-col gap-3 justify-between relative bg-zinc-900/30 p-3 rounded-[1.8rem] border border-white/5 overflow-hidden w-full">
                   <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-[12px] custom-scrollbar">
                     <div className="bg-zinc-900 border border-white/5 p-3 rounded-2xl">
                       <div className="flex items-center gap-2 text-[#CCFF00] mb-1 font-bold">
@@ -5275,7 +5638,7 @@ export default function App() {
                         <span className="text-[9.5px] font-mono font-black uppercase tracking-widest">GymMaster Bot AI</span>
                       </div>
                       <p className="text-zinc-300 leading-relaxed font-semibold">
-                        Chào anh/chị {activeMemberData.fullName}! Tôi là Huấn luyện viên thể hình ảo của FIT GYM. Hãy hỏi tôi về lộ trình tập, chế độ ăn kiêng, tăng cơ, giảm cân hoặc thông tin gói tập.
+                        Chào anh/chị {activeMemberData?.fullName}! Tôi là Huấn luyện viên thể hình ảo của FIT GYM. Hãy hỏi tôi về lộ trình tập, chế độ ăn kiêng, tăng cơ, giảm cân hoặc thông tin gói tập.
                       </p>
                     </div>
 
@@ -5305,6 +5668,7 @@ export default function App() {
                       ].map((q, idx) => (
                         <button
                           key={idx}
+                          type="button"
                           onClick={() => handleSendMessage(undefined, q)}
                           className="bg-zinc-950 hover:bg-zinc-900 border border-white/5 text-[9px] hover:text-[#CCFF00] font-black tracking-tight uppercase whitespace-nowrap px-3 py-1.5 rounded-full transition-colors cursor-pointer shrink-0"
                         >
@@ -5334,137 +5698,416 @@ export default function App() {
               </motion.div>
             )}
 
-
-
-            {/* TAB 4: MEMBER PROFILE & REVIEWS */}
+            {/* TAB 4: SUPPORT PERSONNEL / NHÂN VIÊN HỖ TRỢ */}
             {mobileActiveTab === "profile" && (
               <motion.div
-                key="profile_panel"
+                key="support_panel"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="space-y-5 pb-12"
+                className={`flex-1 w-full flex flex-col overflow-hidden ${activeMobileChatId ? 'pb-2 space-y-0' : 'space-y-4 pb-12'}`}
               >
-                {/* Profile Heading Info */}
-                <div className="flex items-center gap-4 bg-zinc-900 border border-white/5 p-4 rounded-[2rem]">
-                  <div className="w-12 h-12 rounded-2xl bg-[#CCFF00]/10 border border-[#CCFF00]/20 flex items-center justify-center shrink-0 overflow-hidden shadow-md">
-                    {activeMemberData.avatar ? (
-                      <img src={activeMemberData.avatar} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    ) : (
-                      <UserIcon className="w-6 h-6 text-[#CCFF00]" />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="text-base font-black italic uppercase text-white truncate leading-none">{activeMemberData.fullName}</h4>
-                    <span className="text-[9px] font-mono text-zinc-500 uppercase mt-1 inline-block">ID Hội viên: #{activeMemberData.id}</span>
-                  </div>
-                </div>
+                {(() => {
+                  // Combine trainers (PT) and staff members for unified display
+                  const ptList = trainers.map(t => ({
+                    id: `PT-${t.id}`,
+                    fullName: t.fullName,
+                    role: "PT",
+                    position: t.level === "Master" ? "Master HLV Thể hình" : (t.level === "Senior" ? "HLV Thể hình Cao Cấp" : "HLV Thể hình"),
+                    phone: t.phone || "0981122334",
+                    email: t.email || "coach@fitgym.vn",
+                    avatar: t.avatar,
+                    isOnline: t.isActive
+                  }));
 
-                {/* Profile detail cards (Pure single column lists!) */}
-                <div className="bg-zinc-900 border border-white/5 p-4 rounded-[2rem] space-y-3.5 font-sans">
-                  <div className="flex justify-between items-center pb-2.5 border-b border-white/5">
-                    <span className="text-[10px] font-mono font-black tracking-widest text-zinc-500 uppercase">SỐ ĐIỆN THOẠI</span>
-                    <span className="text-xs font-bold text-white">{activeMemberData.phone || "CHƯA CẬP NHẬT"}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2.5 border-b border-white/5">
-                    <span className="text-[10px] font-mono font-black tracking-widest text-zinc-500 uppercase">EMAIL ĐĂNG KÝ MÃ</span>
-                    <span className="text-xs font-bold text-zinc-300 truncate max-w-[200px]">{activeMemberData.email}</span>
-                  </div>
-                  <div className="flex justify-between items-center pb-2.5 border-b border-white/5">
-                    <span className="text-[10px] font-mono font-black tracking-widest text-zinc-500 uppercase">ĐỊA CHỈ TRÚ TRÚ</span>
-                    <span className="text-xs font-bold text-white truncate max-w-[170px]">{activeMemberData.address || "CHƯA CẬP NHẬT"}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-mono font-black tracking-widest text-zinc-500 uppercase">NGÀY GIA NHẬP</span>
-                    <span className="text-xs font-mono font-bold text-zinc-400">{activeMemberData.registrationDate?.split('-').reverse().join('/') || "N/A"}</span>
-                  </div>
+                  const regularStaffList = staffMembers.map(s => ({
+                    id: `ST-${s.id}`,
+                    fullName: s.fullName,
+                    role: s.role,
+                    position: s.position || "Nhân viên lễ tân & chăm sóc",
+                    phone: s.phoneNumber || "0912233445",
+                    email: s.email || "support@fitgym.vn",
+                    avatar: undefined,
+                    isOnline: true
+                  }));
 
-                  <button
-                    onClick={() => setIsProfileEditing(true)}
-                    className="w-full bg-[#CCFF00]/10 hover:bg-[#CCFF00] hover:text-black border border-[#CCFF00]/20 text-xs text-[#CCFF00] font-black py-2.5 rounded-xl uppercase tracking-widest transition-all mt-2.5 cursor-pointer"
-                  >
-                    CHỈNH SỬA THÔNG TIN LIÊN HỆ
-                  </button>
-                </div>
+                  const mergedList = [...regularStaffList, ...ptList].filter(p => {
+                    const matchesSearch = !mobileStaffSearch || p.fullName.toLowerCase().includes(mobileStaffSearch.toLowerCase()) || p.position.toLowerCase().includes(mobileStaffSearch.toLowerCase());
+                    if (!matchesSearch) return false;
+                    if (mobileStaffFilter === "PT") return p.role === "PT";
+                    if (mobileStaffFilter === "STAFF") return p.role !== "PT";
+                    return true;
+                  });
 
-                {/* Service rating feedback form (Pure touch list) */}
-                <div className="bg-zinc-900 border border-white/5 p-4 rounded-[2rem] space-y-3.5">
-                  <div className="flex items-center gap-2">
-                    <MessageCircle className="w-4 h-4 text-[#CCFF00]" />
-                    <span className="text-[10px] font-mono font-black uppercase text-zinc-400 tracking-widest">Đánh giá chất lượng dịch vụ</span>
-                  </div>
+                  const activePerson = activeMobileChatId ? mergedList.find(p => p.id === activeMobileChatId) : null;
 
-                  {/* Rating Selector */}
-                  <div className="flex items-center gap-2.5 justify-center py-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => setNewFeedbackRating(star)}
-                        className="p-1 hover:scale-115 transition-transform cursor-pointer select-none"
-                      >
-                        <Star className={`w-7 h-7 shrink-0 ${star <= newFeedbackRating ? "text-[#CCFF00] fill-[#CCFF00]" : "text-zinc-700"}`} />
-                      </button>
-                    ))}
-                  </div>
+                  if (activePerson) {
+                    const chatHistory = mobileDirectChats[activePerson.id] || [];
+                    
+                    const displayMessages = chatHistory.length > 0 
+                      ? chatHistory 
+                      : [
+                          {
+                            id: "wel_init_" + activePerson.id,
+                            sender: "STAFF" as const,
+                            text: `Xin chào! Tôi là ${activePerson.fullName} (${activePerson.position}). Tôi trực tổng đài hỗ trợ 24/7, rất vui được tư vấn các dịch vụ dời ca, hoàn tiền, kỹ thuật hoặc dinh dưỡng của bạn. Bạn hãy để lại tin nhắn nhé!`,
+                            time: "Vừa xong"
+                          }
+                        ];
 
-                  <textarea
-                    rows={2}
-                    placeholder="Mức độ hài lòng của bạn về máy móc phòng, PT hướng dẫn, gạch tắm..."
-                    value={newFeedbackText}
-                    onChange={(e) => setNewFeedbackText(e.target.value)}
-                    className="w-full bg-zinc-950 border border-white/10 p-3 rounded-xl text-[11px] outline-none focus:border-[#CCFF00] text-white font-bold leading-relaxed placeholder-zinc-700 shrink-0"
-                  />
+                    const handleSendDirectMessage = (e: React.FormEvent) => {
+                      e.preventDefault();
+                      if (!mobileChatInputText.trim()) return;
 
-                  <button
-                    onClick={handleAddMobileFeedback}
-                    disabled={isFeedbackSubmitting || !newFeedbackText.trim()}
-                    className={`w-full ${isFeedbackSubmitting || !newFeedbackText.trim() ? "bg-zinc-800 text-zinc-500 border border-transparent" : "bg-[#CCFF00] text-black hover:bg-white border-none shadow-md"} font-black py-2.5 rounded-xl text-[9px] uppercase tracking-widest transition-colors cursor-pointer flex items-center justify-center gap-1`}
-                  >
-                    {isFeedbackSubmitting ? "ĐANG GỬI..." : "GỬI ĐÁNH GIÁ CHẤT LƯỢNG NGAY"}
-                  </button>
+                      const userMsg = {
+                        id: "user_" + Date.now(),
+                        sender: "MEMBER" as const,
+                        text: mobileChatInputText,
+                        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                      };
 
-                  {/* Past feedback responses lists (No Tables!) */}
-                  {memberEvaluationsList.length > 0 && (
-                    <div className="pt-4 border-t border-white/5 space-y-3">
-                      <span className="block text-[8px] font-mono text-zinc-500 font-bold uppercase tracking-widest">ĐÁNH GIÁ CŨ CỦA BẠN:</span>
-                      <div className="space-y-3 max-h-[140px] overflow-y-auto pr-1 text-[11.5px] custom-scrollbar">
-                        {memberEvaluationsList.map((feedback) => (
-                          <div key={feedback.id} className="bg-zinc-950 p-3 rounded-xl border border-white/5 space-y-2 text-left">
-                            <div className="flex justify-between items-center text-[8.5px] font-mono text-zinc-650">
-                              <div className="flex gap-0.5">
-                                {[1, 2, 3, 4, 5].map(s => (
-                                  <Star key={s} className={`w-2.5 h-2.5 ${s <= feedback.rating ? "text-[#CCFF00] fill-[#CCFF00]" : "text-zinc-850"}`} />
-                                ))}
-                              </div>
-                              <span>{feedback.date}</span>
-                            </div>
-                            <p className="text-zinc-200 leading-relaxed font-semibold">"{feedback.comment}"</p>
+                      const nextMessages = [...chatHistory, userMsg];
+                      setMobileDirectChats(prev => ({
+                        ...prev,
+                        [activePerson.id]: nextMessages
+                      }));
+                      setMobileChatInputText("");
+
+                      setIsMobileStaffTyping(true);
+
+                      // Trigger simulated reply from this specific person
+                      setTimeout(() => {
+                        let replyText = "";
+                        const lower = userMsg.text.toLowerCase().trim();
+                        const isPT = activePerson.role === "PT";
+
+                        if (isPT) {
+                          if (lower.includes("đổi pt") || lower.includes("thay pt") || lower.includes("hlv khác") || lower.includes("huấn luyện viên khác")) {
+                            replyText = `Chào bạn, yêu cầu đổi HLV cá nhân (PT) của bạn đã được ghi nhận thành công trên hệ thống. Kế toán sẽ liên hệ trong 24 giờ để dời lại hợp đồng sang PT khác theo mong muốn và khớp thời khóa biểu của bạn.`;
+                          } else if (lower.includes("lộ trình") || lower.includes("bài tập") || lower.includes("giáo án") || lower.includes("tập luyện")) {
+                            replyText = `Chào bạn! Giáo án tập luyện chuyên sâu của bạn đang được điều chỉnh phù hợp với thể trạng mục tiêu hiện tại. Hôm nay bạn có muốn rèn thêm các bài bụng hay cardio không?`;
+                          } else if (lower.includes("ăn") || lower.includes("dinh dưỡng") || lower.includes("calo") || lower.includes("protein")) {
+                            replyText = `Dạ chào bạn, đối với chế độ ăn: Khuyên bạn nên tăng cường nạc, đạm thực vật và hạn chế đồ chiên xào nhiều muối. Bạn có cần tôi gửi file thực đơn ăn kiêng tham khảo tuần này không?`;
+                          } else if (lower.includes("lịch") || lower.includes("hẹn") || lower.includes("trực")) {
+                            replyText = `Chào bạn! Khung giờ tập tuần này của tôi còn trống ca chiều muộn lúc 17:30 - 19:00 hàng ngày. Bạn muốn giữ lịch ngày nào để tôi setup phòng tập và dụng cụ nhé.`;
+                          } else {
+                            replyText = `Chào bạn, HLV ${activePerson.fullName} đã ghi nhận câu hỏi của bạn. Tôi đang hoàn tất dời ca huấn luyện thực tế và sẽ phản hồi sâu/gọi điện trực tiếp để tư vấn kỹ thuật ngay sau 10 phút nữa. Bạn đợi tôi một chút nhé!`;
+                          }
+                        } else {
+                          if (lower.includes("gói tập") || lower.includes("gia hạn") || lower.includes("đăng ký") || lower.includes("mua") || lower.includes("giá")) {
+                            replyText = `Dạ lễ tân FitGym xin chào anh/chị. Hiện tại trung tâm đang có chương trình giảm 10% phí gia hạn thẻ năm, tặng kèm bộ túi thể thao & thảm tập chính hãng. Em có thể giữ slot siêu sale này cho mình không ạ?`;
+                          } else if (lower.includes("lỗi") || lower.includes("hỏng") || lower.includes("khoá") || lower.includes("bàn") || lower.includes("máy tập") || lower.includes("quét")) {
+                            replyText = `Thành thật xin lỗi quý hội viên vì sự bất tiện này. Em đã báo phòng kỹ thuật kiểm tra và tiến hành khắc phục sửa chữa thiết bị sớm nhất. Cảm ơn phản ánh quý giá của anh/chị!`;
+                          } else if (lower.includes("hoàn tiền") || lower.includes("kế toán")) {
+                            replyText = `Dạ, em tiếp nhận yêu cầu thanh toán/hoàn tiền của quý khách. Xin vui lòng gửi qua hình ảnh hóa đơn chuyển khoản hoặc mã giao dịch để lễ tân trình duyệt Ban Giám Đốc phản hồi giải ngân ạ.`;
+                          } else {
+                            replyText = `Dạ vâng ạ, các yêu cầu tư vấn hành chính của anh/chị đã được lễ tân chuyển tiếp lên bộ phận phụ trách. Em xin phép kiểm tra trạng thái thẻ hội viên của mình và giải đáp trực tiếp ngay bây giờ nhé!`;
+                          }
+                        }
+
+                        const staffMsg = {
+                          id: "staff_" + Date.now(),
+                          sender: "STAFF" as const,
+                          text: replyText,
+                          time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                        };
+
+                        setMobileDirectChats(prev => ({
+                          ...prev,
+                          [activePerson.id]: [...(prev[activePerson.id] || []), staffMsg]
+                        }));
+                        setIsMobileStaffTyping(false);
+                        addNotification(`Tin nhắn mới từ ${activePerson.fullName}!`, "success");
+                      }, 1200);
+                    };
+
+                    return (
+                      <div className="flex flex-col flex-1 w-full h-full bg-zinc-950/40 rounded-[2rem] border border-white/5 overflow-hidden relative">
+                        {/* Chat Screen Header */}
+                        <div className="flex items-center justify-between px-4 py-3 bg-zinc-900/60 border-b border-white/5 backdrop-blur-md w-full">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <button 
+                              type="button"
+                              onClick={() => setActiveMobileChatId(null)}
+                              className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center transition-colors cursor-pointer shrink-0 animate-pulse"
+                            >
+                              <ArrowLeft className="w-4 h-4 text-zinc-300" />
+                            </button>
                             
-                            {/* Manager staff feedback replies */}
-                            {feedback.replies && feedback.replies.map(rep => (
-                              <div key={rep.id} className="mt-2.5 pt-2 border-t border-white/5 pl-2.5 border-l-2 border-[#CCFF00]/41 text-left">
-                                <span className="block text-[8px] font-mono font-black text-[#CCFF00] uppercase">PHẢN HỒI TỪ {rep.senderName} ({rep.senderRole})</span>
-                                <p className="text-[10px] text-zinc-500 italic mt-0.5 font-semibold">"{rep.text}"</p>
-                              </div>
-                            ))}
+                            <div className="w-9 h-9 rounded-xl bg-[#CCFF00]/10 border border-[#CCFF00]/20 flex items-center justify-center shrink-0 overflow-hidden relative">
+                              {activePerson.avatar ? (
+                                <img src={activePerson.avatar} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                <UserIcon className="w-4 h-4 text-[#CCFF00]" />
+                              )}
+                              <span className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 border border-zinc-900 rounded-full" />
+                            </div>
+
+                            <div className="min-w-0">
+                              <h4 className="text-[11px] font-black uppercase text-white truncate leading-none">{activePerson.fullName}</h4>
+                              <span className="text-[8px] font-mono font-bold text-zinc-500 truncate block mt-0.5">{activePerson.position}</span>
+                            </div>
                           </div>
+
+                          <a 
+                            href={`tel:${activePerson.phone}`}
+                            className="w-8 h-8 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 flex items-center justify-center transition-colors text-emerald-400 cursor-pointer shrink-0"
+                            title="Gọi hỗ trợ trực tiếp"
+                          >
+                            <Phone className="w-3.8 h-3.8" />
+                          </a>
+                        </div>
+
+                        {/* Message Log */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar flex flex-col bg-zinc-950/15">
+                          {displayMessages.map((msg) => {
+                            const isMe = msg.sender === "MEMBER";
+                            return (
+                              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[85%] rounded-[1.3rem] px-3.5 py-2 text-[11.5px] leading-relaxed shadow-sm ${
+                                  isMe 
+                                    ? 'bg-[#CCFF00] text-black font-extrabold rounded-br-sm' 
+                                    : 'bg-zinc-900 text-zinc-200 border border-white/5 rounded-bl-sm'
+                                }`}>
+                                  <p className="whitespace-pre-line font-medium">{msg.text}</p>
+                                  <span className={`block text-[7px] font-mono mt-1 text-right ${
+                                    isMe ? 'text-zinc-700/80 font-bold' : 'text-zinc-500'
+                                  }`}>
+                                    {msg.time}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          
+                          {/* Typing Indicator */}
+                          {isMobileStaffTyping && (
+                            <div className="flex justify-start items-center gap-2">
+                              <div className="bg-zinc-900 text-zinc-400 border border-white/5 rounded-[1.3rem] rounded-bl-sm px-4 py-2.5 text-[10px] italic flex items-center gap-1.5 shadow-sm">
+                                <span className="w-1.5 h-1.5 bg-[#CCFF00] rounded-full animate-bounce delay-0" />
+                                <span className="w-1.5 h-1.5 bg-[#CCFF00] rounded-full animate-bounce delay-150" />
+                                <span className="w-1.5 h-1.5 bg-[#CCFF00] rounded-full animate-bounce delay-300" />
+                                <span className="text-[8px] font-mono font-bold text-zinc-500 uppercase ml-1">Đang soạn tin...</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Chat Input Bar */}
+                        <form onSubmit={handleSendDirectMessage} className="p-3 bg-zinc-900/40 border-t border-white/5 flex gap-2 items-center backdrop-blur-md">
+                          <input 
+                            type="text"
+                            placeholder="Nhập nội dung cần trao đổi..."
+                            value={mobileChatInputText}
+                            onChange={(e) => setMobileChatInputText(e.target.value)}
+                            className="flex-1 bg-zinc-950 border border-white/10 px-4 py-2.5 rounded-xl text-xs outline-none focus:border-[#CCFF00] text-white font-bold placeholder-zinc-65"
+                          />
+                          <button
+                            type="submit"
+                            disabled={!mobileChatInputText.trim() || isMobileStaffTyping}
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                              !mobileChatInputText.trim() || isMobileStaffTyping
+                                ? 'bg-zinc-800 text-zinc-500' 
+                                : 'bg-[#CCFF00] hover:scale-105 active:scale-95 text-black'
+                            }`}
+                          >
+                            <Send className="w-4.5 h-4.5" />
+                          </button>
+                        </form>
+                      </div>
+                    );
+                  }
+
+                  // Inbox View
+                  const activeContacts = mergedList.filter(p => {
+                    const chatHistory = mobileDirectChats[p.id];
+                    return chatHistory && chatHistory.length > 0;
+                  });
+
+                  return (
+                    <div className="space-y-4">
+                      <div>
+                        <span className="block text-[9px] font-mono font-black text-[#CCFF00] uppercase tracking-widest italic">TỔNG ĐÀI HỖ TRỢ TRỰC TUYẾN 24/7</span>
+                        <h3 className="text-xl font-black italic uppercase tracking-tighter text-white">MESSENGER HỖ TRỢ CHAT</h3>
+                      </div>
+
+                      {/* Simulated Support Search */}
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Tìm nhân viên hỗ trợ hoặc PT..."
+                          value={mobileStaffSearch}
+                          onChange={(e) => setMobileStaffSearch(e.target.value)}
+                          className="w-full bg-zinc-900 border border-white/5 pl-10 pr-4 py-2.5 rounded-2xl text-xs font-semibold text-white outline-none focus:border-[#CCFF00]"
+                        />
+                        <Search className="absolute left-3.5 top-3 w-4 h-4 text-zinc-500" />
+                      </div>
+
+                      {/* Filter Sub-Tabs */}
+                      <div className="flex gap-2 pb-1 overflow-x-auto scrollbar-none">
+                        {[
+                          { id: "ALL", label: "Tất cả" },
+                          { id: "PT", label: "HLV Thể hình (PT)" },
+                          { id: "STAFF", label: "Lễ tân / Support" }
+                        ].map(f => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => setMobileStaffFilter(f.id)}
+                            className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                              mobileStaffFilter === f.id 
+                                ? "bg-[#CCFF00] text-black font-semibold" 
+                                : "bg-zinc-900 text-zinc-500 hover:text-white"
+                            }`}
+                          >
+                            {f.label}
+                          </button>
                         ))}
                       </div>
-                    </div>
-                  )}
-                </div>
 
-                {/* Log Out button */}
-                <div className="pt-2">
-                  <button
-                    onClick={handleLogout}
-                    className="w-full bg-red-500 hover:bg-red-600 hover:scale-[1.01] text-white font-black py-3.5 rounded-xl text-xs uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg"
-                  >
-                    <LogOut className="w-4 h-4 shrink-0" />
-                    ĐĂNG XUẤT CỔNG HỘI VIÊN
-                  </button>
-                </div>
+                      {/* Section 1: Recent Chats (Hiện tin nhắn đã chat) */}
+                      <div className="space-y-2">
+                        <span className="block text-[8px] font-mono font-black text-zinc-500 uppercase tracking-widest leading-none mb-1.5">HỘI THOẠI ĐANG CHAT</span>
+                        {activeContacts.length > 0 ? (
+                          <div className="grid grid-cols-1 gap-2">
+                            {activeContacts.map(contact => {
+                              const history = mobileDirectChats[contact.id] || [];
+                              const lastMsg = history[history.length - 1];
+                              const lastText = lastMsg ? lastMsg.text : "";
+                              const isMe = lastMsg ? lastMsg.sender === "MEMBER" : false;
+
+                              return (
+                                <div 
+                                  key={contact.id}
+                                  onClick={() => setActiveMobileChatId(contact.id)}
+                                  className="flex items-center gap-3 p-3 bg-zinc-900 border border-white/5 hover:border-[#CCFF00]/40 rounded-[1.6rem] transition-all cursor-pointer group hover:scale-[1.01]"
+                                >
+                                  <div className="w-10 h-10 rounded-xl bg-zinc-950 flex items-center justify-center shrink-0 overflow-hidden relative border border-white/5">
+                                    {contact.avatar ? (
+                                      <img src={contact.avatar} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    ) : (
+                                      <UserIcon className="w-4 h-4 text-[#CCFF00]" />
+                                    )}
+                                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border border-zinc-900 rounded-full" />
+                                  </div>
+
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex justify-between items-baseline">
+                                      <h4 className="text-[11.5px] font-black uppercase text-white truncate leading-none">{contact.fullName}</h4>
+                                      <span className="text-[8px] font-mono text-zinc-500 shrink-0">{lastMsg?.time || "Vừa xong"}</span>
+                                    </div>
+                                    <p className="text-[10px] text-zinc-400 mt-1.5 truncate max-w-[210px] leading-none">
+                                      <span className={isMe ? "text-[#CCFF00] font-bold" : ""}>{isMe ? "Bạn: " : ""}</span>
+                                      {lastText}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-zinc-900/20 border border-dashed border-white/5 rounded-[1.8rem] text-center space-y-1.5">
+                            <div className="w-7 h-7 rounded-full bg-zinc-900 flex items-center justify-center mx-auto text-zinc-500">
+                              <MessageCircle className="w-3.5 h-3.5" />
+                            </div>
+                            <p className="text-[9.5px] text-zinc-500 leading-normal font-sans px-3">
+                              Chưa có cuộc trò chuyện nào trước đó. Chọn HLV hoặc kỹ thuật viên ở mục danh bạ phía dưới để khởi tạo chat ngay!
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Section 2: Directory List (Tất cả nhân viên / PT) */}
+                      <div className="space-y-2">
+                        <span className="block text-[8px] font-mono font-black text-zinc-500 uppercase tracking-widest leading-none mb-1.5">DANH BẠ TRỰC TUYẾN ({mergedList.length})</span>
+                        
+                        {mergedList.length === 0 ? (
+                          <div className="p-8 bg-zinc-900/30 border border-dashed border-white/5 rounded-[2rem] text-center text-zinc-500 font-mono text-[9px]">
+                            KHÔNG TÌM THẤY NHÂN VIÊN PHÙ HỢP RIÊNG BIỆT.
+                          </div>
+                        ) : (
+                          <div className="space-y-2.5">
+                            {mergedList.map(person => {
+                              const history = mobileDirectChats[person.id] || [];
+                              const lastMsg = history[history.length - 1];
+                              const lastText = lastMsg ? lastMsg.text : "";
+                              const isMe = lastMsg ? lastMsg.sender === "MEMBER" : false;
+                              const chatSnippet = lastMsg 
+                                ? `${isMe ? "Bạn: " : ""}${lastText}` 
+                                : `Xin chào! Tôi là ${person.fullName}. Hãy gửi tin nhắn hỗ trợ để tôi tư vấn kĩ lưỡng nhất cho anh/chị nhé.`;
+
+                              return (
+                                <div 
+                                  key={person.id} 
+                                  onClick={() => setActiveMobileChatId(person.id)}
+                                  className="bg-zinc-900 border border-white/5 p-4 rounded-[2rem] space-y-3.5 relative overflow-hidden transition-all hover:border-[#CCFF00]/25 cursor-pointer group hover:scale-[1.01]"
+                                >
+                                  {/* Top Row: Avatar & Person details */}
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-[#CCFF00]/5 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden relative">
+                                      {person.avatar ? (
+                                        <img src={person.avatar} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                      ) : (
+                                        <UserIcon className="w-4.5 h-4.5 text-[#CCFF00]" />
+                                      )}
+                                      {person.isOnline && (
+                                        <span className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 border border-zinc-900 rounded-full" />
+                                      )}
+                                    </div>
+                                    
+                                    <div className="min-w-0 flex-1">
+                                      <span className={`inline-block px-1.5 py-0.5 rounded text-[6.5px] font-bold uppercase tracking-wider font-mono ${
+                                        person.role === "PT" ? "bg-amber-500/10 text-amber-400 border border-amber-500/15" : "bg-[#CCFF00]/10 text-[#CCFF00] border border-[#CCFF00]/15"
+                                      }`}>
+                                        {person.role === "PT" ? "Huấn luyện viên" : "Lễ tân & Chăm sóc"}
+                                      </span>
+                                      <h4 className="text-[11.5px] font-black uppercase text-white truncate leading-none mt-1">{person.fullName}</h4>
+                                      <p className="text-[8px] leading-tight italic font-bold text-zinc-500 truncate mt-0.5">{person.position}</p>
+                                    </div>
+                                  </div>
+
+                                  {/* Middle Row: Chat Snippet (Hiển thị đoạn chat) */}
+                                  <div className="bg-zinc-950/50 rounded-2xl p-2.5 border border-white/5 select-none hover:bg-zinc-950 transition-colors">
+                                    <span className="block text-[7.5px] font-mono text-zinc-500 uppercase tracking-widest leading-none mb-1 font-bold">Hội thoại/Giới thiệu:</span>
+                                    <p className="text-[10px] text-zinc-300 font-sans italic line-clamp-2 leading-relaxed">
+                                      {chatSnippet}
+                                    </p>
+                                  </div>
+
+                                  {/* Bottom Row: Dual Action Buttons (Call / Messenger) */}
+                                  <div className="flex justify-between items-center gap-2 pt-1">
+                                    {/* Call Link */}
+                                    <a 
+                                      href={`tel:${person.phone}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                      }}
+                                      className="bg-emerald-500/10 hover:bg-emerald-500 border border-emerald-500/20 hover:text-black py-2 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors flex-1 text-center text-emerald-400 cursor-pointer h-8.5 font-mono"
+                                    >
+                                      <Phone className="w-3.5 h-3.5" /> Gọi trực tiếp
+                                    </a>
+
+                                    {/* Messenger Button */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveMobileChatId(person.id);
+                                      }}
+                                      className="bg-[#CCFF00]/10 hover:bg-[#CCFF00] hover:text-black border border-[#CCFF00]/20 py-2 px-3 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer font-sans text-[#CCFF00] flex-1 h-8.5"
+                                    >
+                                      <MessageCircle className="w-3.5 h-3.5" /> Nhắn tin
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </motion.div>
             )}
 
@@ -5472,7 +6115,7 @@ export default function App() {
         </div>
 
         {/* Floating Chatbot shortcut button inside the phone screen */}
-        {mobileActiveTab !== "chatbot" && (
+        {!isMessagingOpen && (
           <motion.button
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -5493,12 +6136,12 @@ export default function App() {
         )}
 
         {/* BOTTOM TAB DECK (NO SIDEBARS AT ALL) */}
-        <nav className="bg-black/90 backdrop-blur-2xl border-t border-white/10 px-4 py-2 flex items-center justify-around shrink-0 relative z-40 select-none pb-4.5">
+        <nav className={`bg-black/90 backdrop-blur-2xl border-t border-white/10 px-4 py-2 justify-around shrink-0 relative z-40 select-none pb-4.5 ${isMessagingOpen ? 'hidden' : 'flex items-center'}`}>
           {[
             { id: "home", label: "Trang chủ", icon: LayoutDashboard },
             { id: "packages", label: "Gói tập", icon: CreditCard },
             { id: "chatbot", label: "HLV AI", icon: Sparkles },
-            { id: "profile", label: "Cá nhân", icon: UserIcon }
+            { id: "profile", label: "Nhân viên hỗ trợ", icon: Users }
           ].map((item) => {
             const IsActive = mobileActiveTab === item.id;
             return (
@@ -5524,7 +6167,530 @@ export default function App() {
         </nav>
 
         {/* iOS Native bottom spacing overlay */}
-        <div className="w-full h-2 bg-black shrink-0 relative z-40" />
+        <div className={`w-full h-2 bg-black shrink-0 relative z-40 ${isMessagingOpen ? 'hidden' : ''}`} />
+
+        {/* NEW PROFILE, BILLS, & SETTINGS BOTTOM SHEET */}
+        <AnimatePresence>
+          {isMobilePersonalSheetOpen && (
+            <div className="absolute inset-0 z-[150] flex items-end justify-center bg-black/95 backdrop-blur-md">
+              <span className="absolute inset-0 cursor-pointer" onClick={() => setIsMobilePersonalSheetOpen(false)} />
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                className="bg-zinc-900 border-t border-white/10 w-full max-w-[390px] rounded-t-[2.5rem] p-5 text-left flex flex-col max-h-[92%] relative shadow-[0_-15px_40px_rgba(0,0,0,0.9)] z-10 font-sans"
+              >
+                {/* Grab handle bar */}
+                <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto mb-4 cursor-pointer" onClick={() => setIsMobilePersonalSheetOpen(false)} />
+                
+                {/* Sheet Title */}
+                <div className="flex justify-between items-start mb-4 shrink-0">
+                  <div>
+                    <span className="block text-[8.5px] font-mono text-[#CCFF00] uppercase font-black tracking-widest leading-none italic animate-pulse">THÀNH VIÊN PLATINUM</span>
+                    <h3 className="text-lg font-black italic uppercase text-white mt-1 leading-none font-display text-left">
+                      {personalSheetTab === "profile" && "HỒ SƠ CÁ NHÂN"}
+                      {personalSheetTab === "invoices" && "LỊCH SỬ THANH TOÁN"}
+                      {personalSheetTab === "settings" && "CÀI ĐẶT BẢO MẬT"}
+                    </h3>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setIsMobilePersonalSheetOpen(false)} 
+                    className="text-zinc-500 hover:text-white cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+                  >
+                    <XCircle className="w-5.5 h-5.5 shrink-0" />
+                  </button>
+                </div>
+
+                {/* Sub-tab content viewarea (Scrollable) */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pb-6 px-1 text-xs">
+                  
+                  {/* TAB A: PROFILE INFO */}
+                  {personalSheetTab === "profile" && (
+                    <motion.div
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="space-y-3.5"
+                    >
+                      {/* Name Card */}
+                      <div className="flex items-center gap-4 bg-zinc-950 border border-white/5 p-4 rounded-2xl">
+                        <div className="w-12 h-12 rounded-2xl bg-[#CCFF00]/10 border border-[#CCFF00]/20 flex items-center justify-center shrink-0 overflow-hidden shadow-md">
+                          {activeMemberData.avatar ? (
+                            <img src={activeMemberData.avatar} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          ) : (
+                            <UserIcon className="w-5 h-5 text-[#CCFF00]" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-black italic uppercase text-white truncate leading-none">{activeMemberData.fullName}</h4>
+                          <span className="text-[8.5px] font-mono text-zinc-500 uppercase mt-1 inline-block">ID HỘI VIÊN: #PASS-MEM-{activeMemberData.id}</span>
+                        </div>
+                      </div>
+
+                      {/* Detail listing fields */}
+                      <div className="bg-zinc-950/70 border border-white/5 p-4.5 rounded-2xl space-y-3.5">
+                        <div className="flex justify-between items-center pb-2.5 border-b border-white/5">
+                          <span className="text-[8.5px] font-mono font-black text-zinc-500 uppercase tracking-widest">SỐ ĐIỆN THOẠI</span>
+                          <span className="text-xs font-bold text-white font-mono">{activeMemberData.phone || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2.5 border-b border-white/5">
+                          <span className="text-[8.5px] font-mono font-black text-zinc-500 uppercase tracking-widest">EMAIL LIÊN LẠC</span>
+                          <span className="text-xs font-bold text-zinc-300 max-w-[190px] truncate">{activeMemberData.email}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2.5 border-b border-white/5">
+                          <span className="text-[8.5px] font-mono font-black text-zinc-500 uppercase tracking-widest">ĐỊA CHỈ THƯỜNG TRÚ</span>
+                          <span className="text-xs font-bold text-white max-w-[170px] truncate">{activeMemberData.address || "Chưa cập nhật"}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-[8.5px] font-mono font-black text-zinc-500 uppercase tracking-widest">NGÀY ĐĂNG KÝ HỆ THỐNG</span>
+                          <span className="text-xs font-mono font-bold text-zinc-400">{activeMemberData.registrationDate?.split('-').reverse().join('/') || "—"}</span>
+                        </div>
+                      </div>
+
+                      {/* Interactive Editing toggle */}
+                      {isProfileEditing ? (
+                        <div className="bg-zinc-950 border border-white/5 p-4 rounded-2xl space-y-3 animate-fadeIn">
+                          <span className="block text-[8px] font-mono font-black uppercase text-[#CCFF00] tracking-wider mb-2">Cập nhật thông tin liên lạc</span>
+                          <div className="space-y-3">
+                            <div className="space-y-1">
+                              <label className="text-[8px] font-mono text-zinc-500 uppercase block font-bold">Số điện thoại mới</label>
+                              <input
+                                type="text"
+                                value={editingPhone}
+                                onChange={(e) => setEditingPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                                className="w-full bg-zinc-900 border border-white/10 p-2.5 rounded-xl text-xs text-white outline-none focus:border-[#CCFF00] font-mono"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[8px] font-mono text-zinc-500 uppercase block font-bold">Địa chỉ cư trú mới</label>
+                              <input
+                                type="text"
+                                value={editingAddress}
+                                onChange={(e) => setEditingAddress(e.target.value)}
+                                className="w-full bg-zinc-900 border border-white/10 p-2.5 rounded-xl text-xs text-white outline-none focus:border-[#CCFF00] font-semibold"
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setIsProfileEditing(false)}
+                                className="bg-zinc-900 border border-white/5 py-2 rounded-xl text-[9px] uppercase tracking-wider font-bold text-zinc-450 hover:text-white cursor-pointer"
+                              >
+                                Hủy bỏ
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleUpdateMobileProfile}
+                                disabled={isUpdatingProfile || !editingPhone.trim()}
+                                className="bg-[#CCFF00] text-black py-2 rounded-xl text-[9px] uppercase tracking-widest font-black transition-colors cursor-pointer"
+                              >
+                                {isUpdatingProfile ? "ĐANG LƯU..." : "XÁC NHẬN LƯU"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingPhone(activeMemberData.phone || "");
+                            setEditingAddress(activeMemberData.address || "");
+                            setIsProfileEditing(true);
+                          }}
+                          className="w-full bg-[#CCFF00]/10 hover:bg-[#CCFF00] hover:text-black border border-[#CCFF00]/15 text-xs text-[#CCFF00] font-black py-3 rounded-2xl uppercase tracking-widest transition-all cursor-pointer"
+                        >
+                          CHỈNH SỬA THÔNG TIN LIÊN HỆ
+                        </button>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {/* TAB B: BILLING / INVOICES */}
+                  {personalSheetTab === "invoices" && (
+                    <motion.div
+                      initial={{ opacity: 0, x: 10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="space-y-3.5"
+                    >
+                      <div>
+                        <span className="block text-[8px] font-mono text-[#CCFF00] uppercase tracking-widest font-black italic mb-1">HÓA ĐƠN ĐĂNG KÝ GIAO DỊCH CHÍNH</span>
+                        <h4 className="text-[10.5px] font-mono text-zinc-500 font-bold uppercase">LỊCH SỬ GIAO DỊCH QUÝ KHÁCH HÀNG</h4>
+                      </div>
+
+                      {/* Display original membership bill */}
+                      <div className="bg-zinc-950 border border-white/5 p-4 rounded-2xl relative overflow-hidden space-y-3">
+                        <div className="absolute top-0 right-0 px-2 py-0.5 bg-[#CCFF00]/10 border-b border-l border-[#CCFF00]/25 rounded-bl text-[7px] font-mono font-black text-[#CCFF00] uppercase">
+                          MÃ SỐ: INV-{activeMemberData.id}-{activeMemberData.memberCode || "MEM1"}
+                        </div>
+
+                        <div className="space-y-1">
+                          <p className="text-zinc-500 text-[8.5px] font-mono uppercase font-black">Nội dung thanh toán</p>
+                          <p className="text-xs font-black italic uppercase text-white font-sans">ĐĂNG KÝ GÓI TẬP PHỔ THÔNG</p>
+                        </div>
+
+                        <div className="flex justify-between items-baseline pt-2 border-t border-white/5">
+                          <div className="space-y-0.5">
+                            <p className="text-zinc-500 text-[8px] font-mono uppercase">GÓI TẬP: <strong className="text-zinc-350 uppercase italic font-sans">{activeMemberData.package || "CHƯA CÓ"}</strong></p>
+                            <p className="text-zinc-500 text-[8px] font-mono uppercase">HẠN SỬ DỤNG: <strong className="text-zinc-350 font-mono">{activeMemberData.expiryDate || "—"}</strong></p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-black text-[#CCFF00] font-mono leading-none">
+                              {/* Calculate package price */}
+                              {((packages.find(p => p.name === activeMemberData.package)?.price || 650000)).toLocaleString("vi-VN")}đ
+                            </p>
+                            <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-400 font-mono text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-emerald-500/15 italic mt-1 pb-[1px]">
+                              ● ĐÃ HOÀN TẤT
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Display virtual Mobile app renewals invoices if any */}
+                      <div className="space-y-2 border-t border-white/5 pt-2">
+                        <span className="block text-[7.5px] font-mono text-zinc-500 font-black uppercase">CÁC HÓA ĐƠN GIA HẠN KẾ TIẾP:</span>
+                        <div className="bg-zinc-900/50 p-4 border border-dashed border-white/5 rounded-2xl text-center text-zinc-500 italic font-medium leading-relaxed font-sans text-[10px]">
+                          Phí dịch vụ gia hạn kế tiếp sẽ hiển thị tự động tại đây sau khi bạn xác nhận và chuyển khoản thành công.
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* TAB C: SETTINGS, REVIEWS & OPINIONS */}
+                  {personalSheetTab === "settings" && (
+                    <motion.div
+                      initial={{ opacity: 0, x: -15 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="space-y-4"
+                    >
+                      {/* Face ID Simulator Settings */}
+                      <div className="bg-zinc-950 border border-white/5 p-4 rounded-2xl space-y-2.5">
+                        <span className="block text-[8px] font-mono font-black text-[#CCFF00] uppercase tracking-widest italic mb-2">QUẢN TRỊ BẢO MẬT SIMULATOR</span>
+                        
+                        <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] uppercase font-black text-white shrink-0 block leading-tight">Đăng nhập nhanh bằng Face ID</span>
+                            <span className="text-[8px] text-zinc-500 shrink-0 block font-bold">Nhận diện bằng Camera AI khi mở app</span>
+                          </div>
+                          <div className="w-9 h-5 bg-[#CCFF00] rounded-full p-[1.5px] flex items-center justify-end cursor-pointer shadow-md">
+                            <div className="w-[17px] h-[17px] bg-black rounded-full" />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-between items-center">
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] uppercase font-black text-white shrink-0 block leading-tight">Mã OTP tự động Smart OTP</span>
+                            <span className="text-[8px] text-zinc-500 shrink-0 block font-bold">Bảo mật mã OTP xác minh nạp tiền nhanh</span>
+                          </div>
+                          <div className="w-9 h-5 bg-zinc-800 rounded-full p-[1.5px] flex items-center justify-start cursor-pointer">
+                            <div className="w-[17px] h-[17px] bg-zinc-400 rounded-full" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ĐỔI MẬT KHẨU TÀI KHOẢN (Change Password) */}
+                      <div className={`bg-zinc-950 border rounded-2xl p-4 text-left transition-all duration-300 ${isChangePasswordExpanded ? 'border-[#CCFF00]/20 shadow-[0_4px_24px_rgba(204,255,0,0.06)]' : 'border-white/5 hover:border-white/10'}`}>
+                        <button
+                          type="button"
+                          onClick={() => setIsChangePasswordExpanded(!isChangePasswordExpanded)}
+                          className="w-full flex items-center justify-between cursor-pointer select-none group focus:outline-none"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Lock className={`w-3.5 h-3.5 transition-colors duration-300 ${isChangePasswordExpanded ? 'text-[#CCFF00] drop-shadow-[0_0_8px_rgba(204,255,0,0.4)]' : 'text-zinc-500 group-hover:text-[#CCFF00]'}`} />
+                            <span className="text-[9px] font-mono font-black uppercase text-zinc-400 group-hover:text-white transition-colors tracking-widest leading-none">Thiết lập mật khẩu mới</span>
+                          </div>
+                          <ChevronDown className={`w-4 h-4 text-zinc-500 transition-transform duration-300 ${isChangePasswordExpanded ? 'rotate-180 text-[#CCFF00]' : 'group-hover:text-white'}`} />
+                        </button>
+
+                        <AnimatePresence initial={false}>
+                          {isChangePasswordExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0, marginTop: 0 }}
+                              animate={{ height: "auto", opacity: 1, marginTop: 12 }}
+                              exit={{ height: 0, opacity: 0, marginTop: 0 }}
+                              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                              className="overflow-hidden space-y-2.5"
+                            >
+                              {/* Mật khẩu hiện tại */}
+                              <div className="space-y-1">
+                                <label className="block text-[8px] font-mono text-zinc-550 font-bold uppercase tracking-wider">Mật khẩu hiện tại</label>
+                                <div className="relative">
+                                  <input
+                                    type={showCurrentPassword ? "text" : "password"}
+                                    placeholder="Nhập mật khẩu hiện tại"
+                                    value={currentPassword}
+                                    onChange={(e) => setCurrentPassword(e.target.value)}
+                                    className="w-full bg-zinc-900 border border-white/10 px-3.5 py-2 rounded-xl text-[10px] outline-none focus:border-[#CCFF00] text-white font-semibold placeholder-zinc-700 font-sans tracking-wide transition-colors"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors cursor-pointer"
+                                  >
+                                    {showCurrentPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Mật khẩu mới */}
+                              <div className="space-y-1">
+                                <label className="block text-[8px] font-mono text-zinc-550 font-bold uppercase tracking-wider">Mật khẩu mới (tối thiểu 6 ký tự)</label>
+                                <div className="relative">
+                                  <input
+                                    type={showNewPassword ? "text" : "password"}
+                                    placeholder="Nhập mật khẩu mới"
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    className="w-full bg-zinc-900 border border-white/10 px-3.5 py-2 rounded-xl text-[10px] outline-none focus:border-[#CCFF00] text-white font-semibold placeholder-zinc-700 font-sans tracking-wide transition-colors"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowNewPassword(!showNewPassword)}
+                                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors cursor-pointer"
+                                  >
+                                    {showNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Xác nhận mật khẩu mới */}
+                              <div className="space-y-1">
+                                <label className="block text-[8px] font-mono text-zinc-555 font-bold uppercase tracking-wider">Xác nhận mật khẩu mới</label>
+                                <input
+                                  type="password"
+                                  placeholder="Xác nhận mật khẩu mới"
+                                  value={confirmNewPassword}
+                                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                                  className="w-full bg-zinc-900 border border-white/10 px-3.5 py-2 rounded-xl text-[10px] outline-none focus:border-[#CCFF00] text-white font-semibold placeholder-zinc-700 font-sans tracking-wide transition-colors"
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={handleMemberChangePassword}
+                                disabled={isChangingPassword || !currentPassword || !newPassword || !confirmNewPassword}
+                                className={`w-full ${
+                                  isChangingPassword || !currentPassword || !newPassword || !confirmNewPassword
+                                    ? "bg-zinc-900 text-zinc-600 border border-white/5"
+                                    : "bg-[#CCFF00] text-black hover:bg-white hover:scale-[1.01] active:scale-[0.99] shadow-md hover:shadow-[0_0_15px_rgba(204,255,0,0.35)]"
+                                } font-black py-2 rounded-xl text-[8px] uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5`}
+                              >
+                                {isChangingPassword ? "ĐANG THIẾT LẬP..." : "XÁC NHẬN ĐỔI MẬT KHẨU"}
+                              </button>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      {/* Feedback Form (Copied from Old profile) */}
+                      <div className="bg-zinc-950 border border-white/5 p-4 rounded-2xl space-y-3.5">
+                        <div className="flex items-center gap-2 mb-1">
+                          <MessageCircle className="w-3.5 h-3.5 text-[#CCFF00]" />
+                          <span className="text-[9px] font-mono font-black uppercase text-zinc-400 tracking-widest">Đánh giá chất lượng dịch vụ</span>
+                        </div>
+
+                        {/* Rating Selector */}
+                        <div className="flex items-center gap-2 justify-center py-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setNewFeedbackRating(star)}
+                              className="p-1 hover:scale-115 transition-transform cursor-pointer select-none"
+                            >
+                              <Star className={`w-5.5 h-5.5 shrink-0 ${star <= newFeedbackRating ? "text-[#CCFF00] fill-[#CCFF00]" : "text-zinc-700 fill-none"}`} />
+                            </button>
+                          ))}
+                        </div>
+
+                        <textarea
+                          rows={2}
+                          placeholder="Mức độ hài lòng của bạn về máy móc phòng, PT, dịch vụ gạch tắm..."
+                          value={newFeedbackText}
+                          onChange={(e) => setNewFeedbackText(e.target.value)}
+                          className="w-full bg-zinc-900 border border-white/10 p-3 rounded-xl text-[10.5px] outline-none focus:border-[#CCFF00] text-white font-semibold leading-relaxed placeholder-zinc-700 shrink-0"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleAddMobileFeedback();
+                          }}
+                          disabled={isFeedbackSubmitting || !newFeedbackText.trim()}
+                          className={`w-full ${isFeedbackSubmitting || !newFeedbackText.trim() ? "bg-zinc-900 text-zinc-650" : "bg-[#CCFF00] text-black hover:bg-white shadow-md"} font-black py-2 rounded-xl text-[8.5px] uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1`}
+                        >
+                          {isFeedbackSubmitting ? "ĐANG GỬI..." : "GỬI ĐÁNH GIÁ CHẤT LƯỢNG"}
+                        </button>
+
+                        {/* Feedback Reply listing */}
+                        {memberEvaluationsList.length > 0 && (
+                          <div className="pt-3 border-t border-white/5 space-y-2.5">
+                            <span className="block text-[7.5px] font-mono text-zinc-500 font-bold uppercase tracking-wider">ĐÁNH GIÁ CŨ CỦA BẠN:</span>
+                            <div className="space-y-2 max-h-[120px] overflow-y-auto pr-1 text-[10px] custom-scrollbar">
+                              {memberEvaluationsList.map((feedback) => (
+                                <div key={feedback.id} className="bg-zinc-900 p-2.5 rounded-xl border border-white/5 space-y-1.5 text-left">
+                                  <div className="flex justify-between items-center text-[7.5px] font-mono text-zinc-650">
+                                    <div className="flex gap-0.5">
+                                      {[1, 2, 3, 4, 5].map(s => (
+                                        <Star key={s} className={`w-2 h-2 ${s <= feedback.rating ? "text-[#CCFF00] fill-[#CCFF00]" : "text-zinc-800"}`} />
+                                      ))}
+                                    </div>
+                                    <span>{feedback.date}</span>
+                                  </div>
+                                  <p className="text-zinc-300 leading-tight italic font-semibold">"{feedback.comment}"</p>
+                                  {feedback.replies && feedback.replies.map(rep => (
+                                    <div key={rep.id} className="mt-1.5 pt-1.5 border-t border-white/5 pl-2 border-l-2 border-[#CCFF00]/40 text-left">
+                                      <span className="block text-[7px] font-mono font-black text-[#CCFF00] uppercase">Phản hồi từ {rep.senderName} ({rep.senderRole})</span>
+                                      <p className="text-[9px] text-zinc-500 italic mt-0.5 font-medium">"{rep.text}"</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Log Out Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobilePersonalSheetOpen(false);
+                          handleLogout();
+                        }}
+                        className="w-full bg-red-500/15 hover:bg-red-500 hover:text-white border border-red-500/25 text-red-500 font-black py-3 rounded-2xl text-[10px] uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-lg mt-3"
+                      >
+                        <LogOut className="w-3.5 h-3.5 shrink-0" />
+                        ĐĂNG XUẤT CỔNG HỘI VIÊN
+                      </button>
+                    </motion.div>
+                  )}
+
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* MOBILE NOTIFICATIONS CENTER BOTTOM SHEET */}
+        <AnimatePresence>
+          {isMobileNotificationsOpen && (
+            <div className="absolute inset-0 z-[150] flex items-end justify-center bg-black/95 backdrop-blur-md">
+              <span className="absolute inset-0 cursor-pointer" onClick={() => setIsMobileNotificationsOpen(false)} />
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                className="bg-zinc-900 border-t border-white/10 w-full max-w-[390px] rounded-t-[2.5rem] p-5 text-left flex flex-col max-h-[85%] relative shadow-[0_-15px_40px_rgba(0,0,0,0.9)] z-10 font-sans"
+              >
+                {/* Grab handle bar */}
+                <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto mb-4 cursor-pointer" onClick={() => setIsMobileNotificationsOpen(false)} />
+                
+                {/* Sheet Title */}
+                <div className="flex justify-between items-start mb-4 shrink-0">
+                  <div>
+                    <span className="block text-[8.5px] font-mono text-[#CCFF00] uppercase font-black tracking-widest leading-none">HỘP THƯ HỘI VIÊN</span>
+                    <h3 className="text-lg font-black italic uppercase text-white mt-1 leading-none">THÔNG BÁO HOẠT ĐỘNG</h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {mobileNotifications.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setMobileNotifications([])}
+                        className="text-[8px] font-mono font-black text-red-500 border border-red-400/20 px-2 py-1 rounded bg-red-500/5 hover:bg-red-550 hover:text-white transition-colors cursor-pointer"
+                        title="Xóa tất cả thông báo"
+                      >
+                        XÓA TOÀN BỘ
+                      </button>
+                    )}
+                    <button 
+                      type="button" 
+                      onClick={() => setIsMobileNotificationsOpen(false)} 
+                      className="text-zinc-550 hover:text-white cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+                    >
+                      <XCircle className="w-5.5 h-5.5 shrink-0" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Notifications items layout scrollable */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pb-6 px-0.5 text-xs">
+                  {mobileNotifications.length > 0 ? (
+                    mobileNotifications.map((notif) => {
+                      // Get custom iconography and colors based on notification type
+                      let iconEl = <Bell className="w-4 h-4 text-zinc-400" />;
+                      let borderStyle = "border-white/5";
+                      let bgStyle = "bg-zinc-950/40";
+                      
+                      if (notif.type === "success") {
+                        iconEl = <CheckCircle2 className="w-4 h-4 text-emerald-400" />;
+                        borderStyle = "border-emerald-500/10";
+                        bgStyle = "bg-emerald-500/5";
+                      } else if (notif.type === "bill") {
+                        iconEl = <CreditCard className="w-4 h-4 text-amber-400" />;
+                        borderStyle = "border-amber-500/10";
+                        bgStyle = "bg-amber-500/5";
+                      } else if (notif.type === "announcement") {
+                        iconEl = <Sparkles className="w-4 h-4 text-[#CCFF00]" />;
+                        borderStyle = "border-[#CCFF00]/10";
+                        bgStyle = "bg-[#CCFF00]/5";
+                      } else if (notif.type === "info") {
+                        iconEl = <BrainCircuit className="w-4 h-4 text-blue-400" />;
+                        borderStyle = "border-blue-500/10";
+                        bgStyle = "bg-blue-500/5";
+                      }
+
+                      return (
+                        <div 
+                          key={notif.id} 
+                          className={`p-3.5 border rounded-2xl ${borderStyle} ${bgStyle} flex items-start gap-3.5 relative overflow-hidden transition-all duration-300 hover:bg-zinc-950`}
+                        >
+                          <div className="w-8.5 h-8.5 rounded-xl bg-zinc-900 border border-white/5 flex items-center justify-center shrink-0">
+                            {iconEl}
+                          </div>
+                          
+                          <div className="flex-1 min-w-0 pr-4">
+                            <span className="block text-[8px] font-mono text-zinc-500 uppercase tracking-wide">
+                              {notif.time}
+                            </span>
+                            <h4 className="text-[11px] font-black uppercase text-white mt-1 leading-tight tracking-tight">
+                              {notif.title}
+                            </h4>
+                            <p className="text-[10px] leading-relaxed text-zinc-400 font-semibold mt-1.5 whitespace-pre-wrap">
+                              {notif.body}
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileNotifications(prev => prev.filter(n => n.id !== notif.id));
+                            }}
+                            className="absolute top-2.5 right-2.5 text-zinc-650 hover:text-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                            title="Xóa thông báo này"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="py-16 text-center space-y-4">
+                      <div className="w-12 h-12 rounded-full bg-zinc-950 border border-dashed border-white/5 mx-auto flex items-center justify-center text-zinc-650">
+                        <Bell className="w-5 h-5 shrink-0" />
+                      </div>
+                      <div className="space-y-1">
+                        <span className="block text-[10px] font-mono font-black text-zinc-500 uppercase">Hộp thư trống</span>
+                        <p className="text-[9.5px] font-semibold text-zinc-600 uppercase tracking-wide leading-relaxed">Không có thông báo mới nào được ghi nhận hôm nay.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
         {/* DIALOG DETAILS MODALS & BOTTOM SHEETS */}
         
@@ -5661,6 +6827,18 @@ export default function App() {
 
                       if (res.ok) {
                         addNotification(`Đăng ký thành công gói dịch vụ [${checkoutPackage.name}]!`, "success");
+                        
+                        // Dispatch contract renewal alert to notifications center
+                        const renewalNotif = {
+                          id: Date.now(),
+                          title: "HÓA ĐƠN: GIA HẠN GÓI THÀNH CÔNG",
+                          body: `Hợp đồng gia hạn gói dịch vụ [${checkoutPackage.name.toUpperCase()}] bắt đầu từ ngày ${mobileRenewalDate} đã được thanh toán và kích hoạt thành công qua phương thức [${mobileRenewPaymentMethod}]. Thẻ ảo pass của bạn đã cập nhật hạn sử dụng mới.`,
+                          time: "Vừa xong",
+                          type: "bill",
+                          read: false
+                        };
+                        setMobileNotifications(prev => [renewalNotif, ...prev]);
+
                         setCheckoutPackage(null);
                         fetchData(); // Reload stats and packages in backend
                       } else {
@@ -13109,20 +14287,15 @@ export default function App() {
                   </div>
 
                   <div className="col-span-1">
-                    <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-widest mb-2 italic font-bold">
-                      {t('paymentDate')}
+                    <label className="block text-[10px] font-mono text-zinc-400 uppercase tracking-widest mb-2 italic font-bold flex justify-between">
+                      <span>{t('paymentDate')}</span>
+                      <span className="text-[#CCFF00] text-[8px] tracking-normal font-black uppercase">KÍCH HOẠT HÔM NAY</span>
                     </label>
                     <input
-                      required
+                      readOnly
                       type="date"
-                      value={newMember.paymentDate}
-                      onChange={(e) =>
-                        setNewMember({
-                          ...newMember,
-                          paymentDate: e.target.value,
-                        })
-                      }
-                      className="w-full bg-white/5 border border-white/10 px-4 py-3 rounded-xl focus:border-[#CCFF00] outline-none text-xs font-mono uppercase"
+                      value={newMember.paymentDate || new Date().toISOString().split("T")[0]}
+                      className="w-full bg-white/5 border border-[#CCFF00]/10 text-zinc-400 opacity-80 px-4 py-3 rounded-xl outline-none text-xs font-mono uppercase font-black cursor-not-allowed"
                     />
                   </div>
 
