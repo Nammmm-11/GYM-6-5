@@ -9077,7 +9077,7 @@ export default function App() {
                                     <div className="flex items-center gap-3">
                                       <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">{sale.dateTime}</span>
                                       <span className="w-1 h-1 rounded-full bg-zinc-800" />
-                                      <span className="text-[10px] font-mono text-zinc-655 italic">#{sale.id}</span>
+                                      <span className="text-[10px] font-mono text-zinc-550 italic">#{sale.id}</span>
                                     </div>
                                     {sale.startDate && sale.expiryDate && (
                                       <div className="flex items-center gap-2 mt-3">
@@ -9106,7 +9106,7 @@ export default function App() {
                               <div className="w-20 h-20 rounded-[2rem] bg-white/5 border border-dashed border-white/10 flex items-center justify-center">
                                 <Wallet className="w-8 h-8 text-zinc-800" />
                               </div>
-                              <p className="text-zinc-700 text-[10px] font-black uppercase tracking-[0.4em] italic">
+                              <p className="text-zinc-750 text-[10px] font-black uppercase tracking-[0.4em] italic">
                                 {lang === 'vi' ? 'CHƯA CÓ GIAO DỊCH' : (lang === 'zh' ? '暂无交易明细' : 'NO TRANSACTION HISTORY')}
                               </p>
                             </div>
@@ -9121,666 +9121,396 @@ export default function App() {
           )}
 
           {activeTab === "dashboard" && stats ? (
-            <div className="space-y-8 pb-32 md:pb-6 h-full flex flex-col overflow-y-auto custom-scrollbar px-5 md:px-5 animate-fadeIn">
-              {/* Quick Actions Board (Quick Check-in & Add New Member) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 shrink-0 mr-0 animate-fadeIn bg-zinc-950/35 p-5 border border-white/10 rounded-[2.5rem]">
-                {/* Quick Check-in Button Card */}
-                <button
-                  onClick={() => setIsCheckinModalOpen(true)}
-                  className="group relative overflow-hidden bg-gradient-to-br from-[#CCFF00]/10 via-[#CCFF00]/5 to-zinc-950 hover:from-[#CCFF00] hover:to-[#CCFF00] p-6 rounded-[2rem] border border-[#CCFF00]/20 hover:border-[#CCFF00] text-left transition-all duration-300 shadow-xl flex items-center justify-between gap-4 active:scale-[0.98] cursor-pointer"
-                >
-                  <div className="space-y-1 relative z-10 transition-colors duration-300">
-                    <h3 className="text-lg md:text-xl font-black text-white group-hover:text-black italic uppercase tracking-tighter">
-                      {t('quickCheckin')}
-                    </h3>
-                    <p className="text-[10px] text-zinc-400 group-hover:text-black/80 font-bold uppercase tracking-wide">
-                      {lang === 'vi' ? 'Quét mã vạch / Thẻ hội viên để vào phòng máy nhanh chóng' : (lang === 'zh' ? '扫描条形码/会员卡以快速进入健身房' : 'Scan barcode or member card to access the gym quickly')}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 rounded-xl bg-zinc-900 border border-white/10 group-hover:bg-black group-hover:border-black/20 flex items-center justify-center shrink-0 text-[#CCFF00] group-hover:text-black shadow-md transition-all duration-300 group-hover:rotate-6">
-                    <CheckCircle2 className="w-6 h-6" />
-                  </div>
-                </button>
+            <div className="space-y-6 pb-28 md:pb-6 h-full flex flex-col overflow-y-auto custom-scrollbar px-4 md:px-4 animate-fadeIn">
+              {(() => {
+                const lastCheckinItem = checkins.length > 0 ? [...checkins].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())[0] : null;
+                const lastMember = lastCheckinItem ? members.find(m => m.id === lastCheckinItem.memberId) : null;
+                
+                const defaultMember = {
+                  id: 1,
+                  fullName: "Nguyễn Quang Thi",
+                  phone: "0393728461",
+                  package: "MEMBERSHIP 1 tháng",
+                  status: "Hoạt động",
+                  registrationDate: "2026-05-12",
+                  expiryDate: "2026-06-12",
+                  avatar: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=400&auto=format&fit=crop"
+                };
+                
+                const displayMember = lastMember || members[0] || defaultMember;
+                const displayCheckinTimeStr = lastCheckinItem 
+                  ? new Date(lastCheckinItem.time).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) 
+                  : "06:42:30";
+                const displayCheckinDateStr = lastCheckinItem 
+                  ? new Date(lastCheckinItem.time).toLocaleDateString("vi-VN") 
+                  : "17/05/2026";
 
-                {/* Add New Member Button Card */}
-                <button
-                  onClick={openAddMemberModal}
-                  className="group relative overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-950 to-zinc-950 hover:from-[#CCFF00] hover:to-[#CCFF00] p-6 rounded-[2rem] border border-white/10 hover:border-[#CCFF00] text-left transition-all duration-300 shadow-xl flex items-center justify-between gap-4 active:scale-[0.98] cursor-pointer"
-                >
-                  <div className="space-y-1 relative z-10 transition-colors duration-300">
-                    <h3 className="text-lg md:text-xl font-black text-white group-hover:text-black italic uppercase tracking-tighter">
-                      {t('addMember')}
-                    </h3>
-                    <p className="text-[10px] text-zinc-400 group-hover:text-black/80 font-bold uppercase tracking-wide">
-                      {lang === 'vi' ? 'Đăng ký thông tin, thiết lập hội viên mới và kích hoạt gói tập' : (lang === 'zh' ? '登记信息、设立新会员并激活课程' : 'Register details, onboard new members and activate packages')}
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 rounded-xl bg-zinc-900 border border-white/10 group-hover:bg-black group-hover:border-black/20 flex items-center justify-center shrink-0 text-[#CCFF00] group-hover:text-black shadow-md transition-all duration-300 group-hover:-rotate-6">
-                    <Users className="w-6 h-6" />
-                  </div>
-                </button>
-              </div>
+                const calcRemainingDays = (dateStr?: string) => {
+                  if (!dateStr) return 26;
+                  try {
+                    const diff = new Date(dateStr).getTime() - Date.now();
+                    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                    return days > 0 ? days : 0;
+                  } catch {
+                    return 26;
+                  }
+                };
 
-              {/* Dynamic KPI Metrics Grid */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 shrink-0 mr-0">
-                {[
+                const remainingDays = calcRemainingDays(displayMember.expiryDate);
+
+                const formatLocalDate = (dateStr?: string) => {
+                  if (!dateStr) return "12/05/2026";
+                  try {
+                    const d = new Date(dateStr);
+                    return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+                  } catch {
+                    return "12/05/2026";
+                  }
+                };
+
+                {/* KPI metrics calculation */}
+                const metric_invoice_expiring = members.filter(m => {
+                  if (!m.expiryDate || m.status !== 'Hoạt động') return false;
+                  const days = (new Date(m.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24);
+                  return days > 0 && days <= 15;
+                }).length || 7;
+
+                const metric_invoice_expired = stats?.expiredMembers || members.filter(m => m.status === 'Hết hạn').length || 6;
+                const metric_invoice_paused = members.filter(m => m.status === 'Bảo lưu').length || 0;
+                const metric_invoice_new = members.filter(m => {
+                  if (!m.registrationDate) return false;
+                  const diff = (new Date().getTime() - new Date(m.registrationDate).getTime()) / (1000 * 60 * 60 * 24);
+                  return diff >= 0 && diff <= 15;
+                }).length || 0;
+
+                const metric_member_today = stats?.checkinsToday || checkins.filter(c => new Date(c.time).toDateString() === new Date().toDateString()).length || 4;
+                const metric_member_yesterday = checkins.filter(c => {
+                  const d = new Date(c.time);
+                  const yesterday = new Date();
+                  yesterday.setDate(yesterday.getDate() - 1);
+                  return d.toDateString() === yesterday.toDateString();
+                }).length || 44;
+                const metric_member_week = checkins.filter(c => {
+                  const d = new Date(c.time);
+                  const diff = (new Date().getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
+                  return diff >= 0 && diff <= 7;
+                }).length || 334;
+                const metric_member_month = checkins.filter(c => {
+                  const d = new Date(c.time);
+                  const diff = (new Date().getTime() - d.getTime()) / (1000 * 60 * 60 * 24);
+                  return diff >= 0 && diff <= 30;
+                }).length || 719;
+
+                const liveCheckins = checkins.map((c) => {
+                  const m = members.find(mem => mem.id === c.memberId);
+                  return {
+                    id: c.id,
+                    fullName: c.memberName || m?.fullName || "Hội viên",
+                    phone: m?.phone || "—",
+                    package: m?.package || "MEMBERSHIP 1 tháng",
+                    avatar: m?.avatar || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&auto=format&fit=crop",
+                    timeStr: (() => {
+                      try {
+                        const t = new Date(c.time);
+                        return `${t.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} ${t.toLocaleDateString("vi-VN")}`;
+                      } catch {
+                        return "06:42:30 17/05/2026";
+                      }
+                    })()
+                  };
+                });
+
+                const mockCheckins = [
                   {
-                    label: t('checkin'),
-                    value: stats.checkinsToday,
-                    icon: Activity,
-                    color: "text-[#CCFF00]",
-                    borderColor: "hover:border-[#CCFF00]/40",
-                    topBarColor: "from-emerald-500 to-[#CCFF00]",
-                    sub: t('today'),
-                    desc: lang === 'vi' ? 'Lượt ra vào ngày hôm nay' : (lang === 'zh' ? '今日出入次数' : 'Total check-ins today'),
+                    id: "mock-1",
+                    fullName: "Nguyễn Quang Thi",
+                    phone: "0393728461",
+                    package: "MEMBERSHIP 1 tháng",
+                    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop",
+                    timeStr: "06:42:30 17/05/2026"
                   },
                   {
-                    label: t('expired'),
-                    value: stats.expiredMembers,
-                    icon: ClockIcon,
-                    color: "text-rose-500",
-                    borderColor: "hover:border-rose-500/40",
-                    topBarColor: "from-red-500 to-rose-600",
-                    sub: t('actionNeeded'),
-                    desc: lang === 'vi' ? 'Khách hàng cần gia hạn thẻ' : (lang === 'zh' ? '需要续费卡片的客户' : 'Expired memberships requiring renewal'),
+                    id: "mock-2",
+                    fullName: "Nguyễn Thị Kim Thảo",
+                    phone: "0867651499",
+                    package: "MEMBERSHIP 1 tháng",
+                    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop",
+                    timeStr: "06:42:07 17/05/2026"
                   },
                   {
-                    label: t('allMembers'),
-                    value: stats.totalMembers,
-                    icon: UserPlusIcon,
-                    color: "text-blue-400",
-                    borderColor: "hover:border-blue-500/40",
-                    topBarColor: "from-blue-500 to-sky-400",
-                    sub: t('total'),
-                    desc: lang === 'vi' ? 'Tổng số hội viên trong hệ thống' : (lang === 'zh' ? '系统内注册的核心会员总数' : 'Total registered members in system'),
+                    id: "mock-3",
+                    fullName: "Huỳnh Tấn Trung",
+                    phone: "0913470243",
+                    package: "MEMBERSHIP 12 THÁNG",
+                    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop",
+                    timeStr: "06:08:26 17/05/2026"
                   },
                   {
-                    label: t('revenue'),
-                    value: `${(stats.revenueThisMonth).toLocaleString("vi-VN")}đ`,
-                    icon: DollarSign,
-                    color: "text-teal-400",
-                    borderColor: "hover:border-teal-400/40",
-                    topBarColor: "from-[#CCFF00] to-teal-400",
-                    sub: t('thisMonth'),
-                    desc: lang === 'vi' ? 'Doanh thu tích lũy tháng này' : (lang === 'zh' ? '本月累计总销售额' : 'Total accumulated revenue this month'),
-                  },
-                ].map((stat) => (
-                  <div
-                    key={stat.label}
-                    className={`bg-zinc-950/60 backdrop-blur-md border border-white/10 ${stat.borderColor} p-4 rounded-3xl transition-all duration-300 relative overflow-hidden group shadow-xl`}
-                  >
-                    <div className={`absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r ${stat.topBarColor} opacity-70 group-hover:opacity-100 transition-opacity`} />
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <p className="text-[9px] font-black font-mono text-zinc-500 uppercase tracking-widest">{stat.label}</p>
-                        <p className={`text-xl md:text-2xl font-black mt-1 font-mono tracking-tight group-hover:scale-105 transition-transform origin-left ${stat.color}`}>
-                          {stat.value}
-                        </p>
-                      </div>
-                      <div className={`p-2 bg-white/5 rounded-xl ${stat.color} group-hover:scale-110 transition-transform`}>
-                        <stat.icon className="w-5 h-5" />
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-zinc-500 mt-2.5 italic font-medium">{stat.desc}</p>
-                  </div>
-                ))}
-              </div>
+                    id: "mock-4",
+                    fullName: "Trần Thông Minh",
+                    phone: "0381587289",
+                    package: "MEMBERSHIP 3 tháng",
+                    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop",
+                    timeStr: "06:08:17 17/05/2026"
+                  }
+                ];
 
-              {/* Bento Grid Analytics Station */}
-              <div className="grid grid-cols-12 gap-6 items-start mr-0">
-                {/* Left Side: Charts & Verification Log Feed */}
-                <div className={`${isTrafficExpanded || isCheckinsExpanded ? 'col-span-12' : 'col-span-12 lg:col-span-8'} space-y-6 transition-all duration-300`}>
-                  {/* Gym Traffic Hour-by-Hour Curve */}
-                  <div className="bg-zinc-950/40 border border-white/10 p-6 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
-                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
-                      <div>
-                        <span className="text-[10px] font-black font-mono text-[#CCFF00] uppercase tracking-widest bg-[#CCFF00]/10 px-2 py-0.5 rounded border border-[#CCFF00]/20">HOẠT ĐỘNG PHÒNG MÁY</span>
-                        <h3 className="text-base font-black uppercase text-white mt-2 tracking-tight">
-                          TẦN SUẤT CHECK-IN THEO GIỜ CHI TIẾT
-                        </h3>
-                      </div>
-                      <div className="flex items-center gap-3 self-start sm:self-auto">
-                        <div className="flex items-center gap-1.5 bg-white/5 border border-white/10 px-2.5 py-1 rounded-full text-[10px] font-mono text-zinc-400">
-                          <div className="w-1.5 h-1.5 rounded-full bg-[#CCFF00] animate-ping" />
-                          <span>QUÉT THẺ THỜI GIAN THỰC</span>
+                const displayCheckinList = liveCheckins.length > 0 ? [...liveCheckins, ...mockCheckins] : mockCheckins;
+
+                return (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    {/* Left Column (5/12 width on desktop) */}
+                    <div className="col-span-12 lg:col-span-5 flex flex-col gap-6">
+                      {/* Member Info Checkin Display */}
+                      <div className="bg-[#11131a] rounded-[1.5rem] border border-white/5 overflow-hidden shadow-2xl flex flex-col md:flex-row min-h-[380px] hover:border-zinc-800 transition-colors duration-300">
+                        {/* Member Avatar / General Image Block */}
+                        <div className="md:w-1/2 w-full min-h-[240px] md:min-h-0 relative">
+                          <img 
+                            src={displayMember.avatar || defaultMember.avatar}
+                            className="absolute inset-0 w-full h-full object-cover" 
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/30 pointer-events-none" />
                         </div>
-                        <button
-                          onClick={() => {
-                            setIsTrafficExpanded(!isTrafficExpanded);
-                            if (!isTrafficExpanded) {
-                              setIsCheckinsExpanded(false);
-                            }
-                          }}
-                          className={`px-3 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border transition-all ${
-                            isTrafficExpanded 
-                              ? 'bg-[#CCFF00] text-zinc-950 border-[#CCFF00] hover:bg-white hover:border-white'
-                              : 'bg-white/5 border-white/10 hover:border-[#CCFF00] hover:text-[#CCFF00] text-zinc-400'
-                          }`}
-                        >
-                          {isTrafficExpanded ? "Thu nhỏ // Normal" : "Mở rộng // Expand"}
-                        </button>
-                      </div>
-                    </div>
 
-                    {/* Peak Hour Traffic Map */}
-                    <div className={`w-full transition-all duration-300 ${isTrafficExpanded ? "h-[380px]" : "h-[260px]"}`}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart
-                          data={(() => {
-                            const hourBuckens = ["06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00"];
-                            return hourBuckens.map((h) => {
-                              const hourInt = parseInt(h.split(":")[0]);
-                              const actualCount = checkins.filter(c => {
-                                try {
-                                  const date = new Date(c.time);
-                                  const hr = date.getHours();
-                                  return hr >= hourInt && hr < hourInt + 2;
-                                } catch {
-                                  return false;
-                                }
-                              }).length;
-                              
-                              const baselineWeight = hourInt === 6 || hourInt === 18 ? 14 : hourInt === 8 || hourInt === 16 || hourInt === 20 ? 9 : 5;
-                              return {
-                                hour: h,
-                                "Lượt quét": actualCount + (checkins.length > 3 ? 0 : baselineWeight),
-                              };
-                            });
-                          })()}
-                          margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                        >
-                          <defs>
-                            <linearGradient id="dashboardTrafficGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#CCFF00" stopOpacity={0.25} />
-                              <stop offset="95%" stopColor="#CCFF00" stopOpacity={0.0} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
-                          <XAxis 
-                            dataKey="hour" 
-                            stroke="#52525b" 
-                            fontSize={10} 
-                            tickLine={false} 
-                            axisLine={false}
-                          />
-                          <YAxis 
-                            stroke="#52525b" 
-                            fontSize={10} 
-                            tickLine={false} 
-                            axisLine={false} 
-                          />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: "#09090b",
-                              border: "1px solid rgba(255,255,255,0.1)",
-                              borderRadius: "1rem",
-                              fontSize: "11px",
-                              fontFamily: "monospace",
-                            }}
-                          />
-                          <Area 
-                            type="monotone" 
-                            dataKey="Lượt quét" 
-                            stroke="#CCFF00" 
-                            strokeWidth={2}
-                            fillOpacity={1} 
-                            fill="url(#dashboardTrafficGrad)" 
-                          />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    {isTrafficExpanded && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-6 pt-6 border-t border-white/5 grid grid-cols-1 md:grid-cols-3 gap-6 text-xs"
-                      >
-                        <div className="bg-zinc-950 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
-                          <div className="absolute top-0 right-0 p-3 opacity-5">
-                            <Users className="w-12 h-12 text-[#CCFF00]" />
+                        {/* Member Status Detailed Stats */}
+                        <div className="md:w-1/2 w-full p-6 flex flex-col justify-between gap-4 text-zinc-400 text-xs">
+                          {/* Top: Metadata */}
+                          <div className="flex justify-between items-center text-[10px] font-mono text-zinc-500 font-bold tracking-tight">
+                            <span>{displayMember.phone || "0393728461"}</span>
+                            <span>{displayCheckinTimeStr}</span>
                           </div>
-                          <p className="text-[10px] font-black text-[#CCFF00] uppercase tracking-widest mb-2 italic">{lang === 'vi' ? 'KHUNG GIỜ CAO ĐIỂM (PEAK HOURS)' : (lang === 'zh' ? '高峰时段 (PEAK HOURS)' : 'PEAK HOURS ANALYSIS')}</p>
-                          <p className="text-zinc-400 leading-relaxed font-semibold">
-                            {lang === 'vi' ? <>Hãy chuẩn bị nhân sự vào các khung giờ <span className="text-white font-black">16:00 - 20:59</span>. Đề xuất bố trí ít nhất 3 PT túc trực phục vụ khách tập và cân nhắc mở thêm lớp Group X.</> : (lang === 'zh' ? <>请在 <span className="text-white font-black">16:00 - 20:59</span> 高峰期安排充足工作人员。建议安排至少 3 名私教在场服务，并考虑增开团操课。</> : <>Prepare staff during peak hours (<span className="text-white font-black">16:00 - 20:59</span>). Recommend placing at least 3 PTs on duty and considering opening additional Group X classes.</>)}
-                          </p>
-                        </div>
-                        <div className="bg-zinc-950 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
-                          <div className="absolute top-0 right-0 p-3 opacity-5">
-                            <Activity className="w-12 h-12 text-[#CCFF00]" />
+
+                          {/* Middle: Name & Service Details */}
+                          <div>
+                            <h2 className="text-xl font-black text-white uppercase italic tracking-tight leading-tight">
+                              {displayMember.fullName}
+                            </h2>
+                            <div className="mt-1.5 text-[10px] font-bold text-zinc-400 uppercase tracking-wide font-medium">
+                              Dịch vụ: <span className="text-[#CCFF00] font-black">{displayMember.package || "MEMBERSHIP 1 tháng"}</span>
+                            </div>
                           </div>
-                          <p className="text-[10px] font-black text-[#CCFF00] uppercase tracking-widest mb-2 italic">{lang === 'vi' ? 'TỐI ƯU CHI PHÍ VẬN HÀNH' : (lang === 'zh' ? '优化运营成本' : 'OPERATIONAL COST OPTIMIZATION')}</p>
-                          <p className="text-zinc-400 leading-relaxed font-semibold">
-                            {lang === 'vi' ? <>Khung giờ <span className="text-white font-black">11:00 - 14:00</span> có lượng khách thấp. Đề xuất tắt bớt 50% điều hòa cục bộ, dồn máy chạy bộ và thực hiện bảo trì định kỳ cho thiết bị Cardio.</> : (lang === 'zh' ? <>时间段 <span className="text-white font-black">11:00 - 14:00</span> 期间客流量较低。建议关闭 50% 的区域空调，缩减运转中的跑步机，并对心肺训练设备进行例行保养。</> : <>Hours <span className="text-white font-black">11:00 - 14:00</span> show low attendance. Suggest turning off 50% of zone air conditioners, condensing treadmills, and performing routine maintenance on Cardio equipment.</>)}
-                          </p>
-                        </div>
-                        <div className="bg-zinc-950 p-5 rounded-2xl border border-white/5 relative overflow-hidden">
-                          <div className="absolute top-0 right-0 p-3 opacity-5">
-                            <TrendingUp className="w-12 h-12 text-[#CCFF00]" />
+
+                          {/* Status Badge */}
+                          <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl w-fit">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="text-[9.5px] font-black text-emerald-400 uppercase tracking-wider">ĐÃ THANH TOÁN</span>
                           </div>
-                          <p className="text-[10px] font-black text-[#CCFF00] uppercase tracking-widest mb-2 italic">{lang === 'vi' ? 'CHIẾN LƯỢC KINH DOANH GIỜ THẤP' : (lang === 'zh' ? '非高峰期商业策略' : 'OFF-PEAK BUSINESS STRATEGY')}</p>
-                          <p className="text-zinc-400 leading-relaxed font-semibold">
-                            {lang === 'vi' ? <>Tạo gói tập <span className="text-[#CCFF00] font-black">Happy Hour - Offpeak Membership</span> giảm 35% học phí cho khách tập chỉ đến từ 10:00 - 15:00 nhằm tối đa hóa công suất sử dụng phòng tập.</> : (lang === 'zh' ? <>推出 <span className="text-[#CCFF00] font-black">欢乐时光 - 非高峰期会员卡</span>，对仅在 10:00 - 15:00 入场的客户提供 35% 学费优惠，以最大化场地利用率。</> : <>Create a <span className="text-[#CCFF00] font-black">Happy Hour - Offpeak Membership</span> package with 35% discount for members practicing only from 10:00 to 15:00 to maximize venue utility.</>)}
-                          </p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </div>
 
-                  {/* High-End Check-in Log Timeline Feed */}
-                  <div className="bg-zinc-950/40 border border-white/10 p-6 rounded-[2.5rem] shadow-2xl transition-all duration-300">
-                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
-                      <div className="flex items-center gap-2">
-                        <Activity className="w-4 h-4 text-[#CCFF00]" />
-                        <h3 className="text-sm font-black uppercase tracking-wider text-white">{lang === 'vi' ? 'LỊCH SỬ QUÉT THẺ TRUY CẬP PHÒNG TẬP' : (lang === 'zh' ? '会员出入签到历史记录' : 'ACCESS CONTROL CHECK-IN HISTORY')}</h3>
-                      </div>
-                      <div className="flex items-center gap-3 self-start sm:self-auto">
-                        <span className="text-[10px] font-mono font-black text-zinc-500 uppercase tracking-widest bg-white/5 px-2.5 py-1 rounded">
-                          {lang === 'vi' ? 'TẤT CẢ' : (lang === 'zh' ? '全部' : 'ALL')} ({checkins.length})
-                        </span>
-                        <button
-                          onClick={() => {
-                            setIsCheckinsExpanded(!isCheckinsExpanded);
-                            if (!isCheckinsExpanded) {
-                              setIsTrafficExpanded(false);
-                            }
-                          }}
-                          className={`px-3 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg border transition-all ${
-                            isCheckinsExpanded 
-                              ? 'bg-[#CCFF00] text-zinc-950 border-[#CCFF00] hover:bg-white hover:border-white'
-                              : 'bg-white/5 border-white/10 hover:border-[#CCFF00] hover:text-[#CCFF00] text-zinc-400'
-                          }`}
-                        >
-                          {isCheckinsExpanded 
-                            ? (lang === 'vi' ? "Thu nhỏ // Normal" : (lang === 'zh' ? "收起" : "Collapse")) 
-                            : (lang === 'vi' ? "Mở rộng & Tra cứu // Expand" : (lang === 'zh' ? "展开与查询" : "Expand & Search"))}
-                        </button>
-                      </div>
-                    </div>
-
-                    {isCheckinsExpanded && (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        className="mb-4 bg-zinc-950 border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row gap-4 items-center"
-                      >
-                        <div className="relative flex-1 group w-full">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 group-focus-within:text-[#CCFF00] transition-colors" />
-                          <input
-                            type="text"
-                            placeholder="Nhập tên hội viên hoặc mã ID để tra cứu lịch sử nhanh..."
-                            value={dashboardCheckinQuery}
-                            onChange={(e) => setDashboardCheckinQuery(e.target.value)}
-                            className="w-full bg-white/5 border border-white/5 pl-9 pr-4 py-2.5 rounded-xl text-xs font-semibold text-white placeholder-zinc-650 focus:outline-none focus:border-[#CCFF00]/40 transition-colors"
-                          />
-                        </div>
-                      </motion.div>
-                    )}
-
-                    <div className={`space-y-3.5 overflow-y-auto pr-1.5 custom-scrollbar transition-all duration-300 ${isCheckinsExpanded ? "max-h-[650px]" : "max-h-[380px]"}`}>
-                      {(() => {
-                        const filteredCheckins = checkins.filter(c => {
-                          if (!dashboardCheckinQuery) return true;
-                          const q = dashboardCheckinQuery.toLowerCase();
-                          return c.memberName.toLowerCase().includes(q) || c.memberId.toString().includes(q);
-                        });
-
-                        return filteredCheckins.length > 0 ? (
-                          filteredCheckins.map((checkin) => {
-                            const associatedMember = members.find(m => m.id === checkin.memberId);
-                            return (
-                              <div
-                                key={checkin.id}
-                                className="bg-zinc-950/80 border border-white/5 p-4.5 rounded-2xl hover:border-[#CCFF00]/40 transition-colors group relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                              >
-                                <div className="absolute top-0 left-0 w-1.5 h-full bg-[#CCFF00]/0 group-hover:bg-[#CCFF00] transition-colors" />
-                                <div className="flex items-center gap-4.5">
-                                  {associatedMember?.avatar ? (
-                                    <img 
-                                      src={associatedMember.avatar} 
-                                      className="w-11 h-11 rounded-xl object-cover border border-white/10 group-hover:border-[#CCFF00]/40 transition-colors shrink-0" 
-                                      referrerPolicy="no-referrer"
-                                    />
-                                  ) : (
-                                    <div className="w-11 h-11 rounded-xl bg-zinc-900 border border-white/10 flex items-center justify-center font-black text-xs text-[#CCFF00] group-hover:rotate-3 transition-transform shrink-0">
-                                      {checkin.memberName.split(" ").pop()?.charAt(0) || "U"}
-                                    </div>
-                                  )}
-                                  <div>
-                                    <div className="font-black italic uppercase tracking-tight text-white group-hover:text-[#CCFF00] transition-colors">
-                                      {checkin.memberName}
-                                    </div>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <span className="text-[9px] font-mono font-black text-zinc-500 uppercase tracking-wider">
-                                        ID-{checkin.memberId.toString().padStart(3, "0")}
-                                      </span>
-                                      {associatedMember?.phone && (
-                                        <>
-                                          <span className="w-1 h-1 rounded-full bg-zinc-800" />
-                                          <span className="text-[9px] font-mono text-zinc-500 font-bold bg-white/5 px-1 py-0.2 rounded">{associatedMember.phone}</span>
-                                        </>
-                                      )}
-                                      <span className="w-1 h-1 rounded-full bg-zinc-800" />
-                                      <span className="text-[9.5px] font-mono font-bold text-[#CCFF00]">{associatedMember?.package || (lang === 'vi' ? "Thẻ thường" : (lang === 'zh' ? "普通卡" : "General Card"))}</span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center justify-between sm:justify-end gap-6 border-t sm:border-y-0 border-white/5 pt-3.5 sm:pt-0">
-                                  <div className="text-left sm:text-right">
-                                    <div className="text-base font-black italic tracking-tighter text-zinc-300 font-mono">
-                                      {(() => {
-                                        try {
-                                          return new Date(checkin.time).toLocaleTimeString("vi-VN", {
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                            second: "2-digit",
-                                          });
-                                        } catch {
-                                          return "--:--:--";
-                                        }
-                                      })()}
-                                    </div>
-                                    <div className="text-[8px] font-black font-mono text-zinc-500 uppercase tracking-widest mt-0.5">{lang === 'vi' ? 'XÁC MINH ENTRY' : (lang === 'zh' ? '刷卡验证' : 'ENTRY VERIFICATION')}</div>
-                                  </div>
-
-                                  <div className="px-3.5 py-1 bg-[#CCFF00]/10 text-[#CCFF00] text-[9px] font-black uppercase tracking-widest rounded-lg border border-[#CCFF00]/20 shadow-inner">
-                                    APPROVED
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <div className="py-16 text-center bg-zinc-900/40 rounded-3xl border border-white/5 border-dashed flex flex-col items-center justify-center gap-3">
-                            <Activity className="w-8 h-8 text-zinc-700" />
-                            <p className="text-[10px] font-mono text-[#CCFF00]/50 uppercase tracking-[0.4em]">{lang === 'vi' ? 'KHÔNG TÌM THẤY KẾT QUẢ PHÙ HỢP' : (lang === 'zh' ? '未找到符合条件的结果' : 'NO MATCHING RESULTS FOUND')}</p>
+                          {/* Remaining Box */}
+                          <div className="bg-[#181a24] p-3 rounded-2xl border border-white/5 text-center flex flex-col justify-center items-center shadow-inner relative overflow-hidden">
+                            <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest mb-1">Còn lại</span>
+                            <span className="text-3xl font-black italic text-[#CCFF00] font-mono leading-none">{remainingDays}</span>
+                            <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wide mt-1">Ngày</span>
                           </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
 
-                {/* Right Side: Bento Action Deck & Demographics charts */}
-                <div className={`${isStatusExpanded ? 'col-span-12' : 'col-span-12 lg:col-span-4'} space-y-6 transition-all duration-300`}>
-                  {/* Membership Health Stats Chart */}
-                  <div className="bg-zinc-950/40 border border-white/10 p-6 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
-                    <div className="flex justify-between items-start mb-4">
-                      <span className="text-[10px] font-black font-mono text-zinc-500 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded border border-white/10">{lang === 'vi' ? 'TRẠNG THÁI THÀNH VIÊN' : (lang === 'zh' ? '会员状态分布' : 'MEMBER HEALTH STATUS')}</span>
-                      <button
-                        onClick={() => setIsStatusExpanded(!isStatusExpanded)}
-                        className={`px-2.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded border transition-all ${
-                          isStatusExpanded 
-                            ? 'bg-[#CCFF00] text-zinc-950 border-[#CCFF00]'
-                            : 'bg-white/5 border-white/10 text-zinc-400 hover:border-[#CCFF00] hover:text-[#CCFF00]'
-                        }`}
-                      >
-                        {isStatusExpanded ? (lang === 'vi' ? "Rút gọn // Collapse" : (lang === 'zh' ? "折叠" : "Collapse")) : (lang === 'vi' ? "Chi tiết // Detail" : (lang === 'zh' ? "详情" : "Detail"))}
-                      </button>
-                    </div>
-                    <h3 className="text-base font-black uppercase text-white mb-6 tracking-tight">{lang === 'vi' ? 'PHÂN BỔ TRẠNG THÁI' : (lang === 'zh' ? '状态比例分布' : 'STATUS RATIO ANALYSIS')}</h3>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                      <div className="h-[210px] w-full flex items-center justify-center relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={[
-                                { name: "Hoạt động", value: stats?.activeMembers || 0 },
-                                { name: "Hết hạn", value: stats?.expiredMembers || 0 },
-                              ]}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={60}
-                              outerRadius={80}
-                              paddingAngle={5}
-                              dataKey="value"
+                          {/* Duration timeframe */}
+                          <div className="text-center font-mono text-[9px] text-zinc-500 leading-none">
+                            Thời gian: <span className="text-zinc-300 font-bold">{formatLocalDate(displayMember.registrationDate)} - {formatLocalDate(displayMember.expiryDate)}</span>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => setActiveTab("members")}
+                              className="bg-[#0099FF] hover:bg-[#007fdf] text-white text-[10px] font-black uppercase tracking-wider py-2.5 px-3 rounded-xl shadow-lg shadow-[#0099FF]/15 active:scale-95 transition-all text-center leading-none"
                             >
-                              <Cell fill="#CCFF00" />
-                              <Cell fill="#f43f5e" />
-                            </Pie>
-                          </PieChart>
-                        </ResponsiveContainer>
+                              Xem Khách hàng
+                            </button>
+                            <button
+                              onClick={() => setActiveTab("memberSales")}
+                              className="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-white/5 text-[10px] font-black uppercase tracking-wider py-2.5 px-3 rounded-xl active:scale-95 transition-all text-center leading-none"
+                            >
+                              Xem Hóa đơn
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Frequency check-in container for hour buckets */}
+                      <div className="bg-[#11131a] rounded-[1.5rem] border border-white/5 p-6 shadow-2xl flex flex-col justify-between min-h-[350px] hover:border-zinc-800 transition-colors duration-300">
+                        <div className="flex justify-between items-center mb-4">
+                          <div>
+                            <h3 className="text-sm font-black uppercase text-white tracking-widest flex items-center gap-2">
+                              <Activity className="w-4 h-4 text-[#CCFF00]" />
+                              Tần suất check-in
+                            </h3>
+                            <p className="text-[10px] text-zinc-550 mt-0.5">Mật độ quét thẻ theo khung giờ trong ngày</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 bg-[#CCFF00]/10 border border-[#CCFF00]/20 px-2.5 py-0.5 rounded-full text-[9px] font-mono text-[#CCFF00]">
+                            <div className="w-1.5 h-1.5 rounded-full bg-[#CCFF00] animate-ping" />
+                            <span>LIVE</span>
+                          </div>
+                        </div>
+
+                        {/* Hour frequency mapping Area Chart */}
+                        <div className="w-full h-[220px] mt-2">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart
+                              data={(() => {
+                                const hourBuckens = ["06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00"];
+                                return hourBuckens.map((h) => {
+                                  const hourInt = parseInt(h.split(":")[0]);
+                                  const actualCount = checkins.filter(c => {
+                                    try {
+                                      const date = new Date(c.time);
+                                      const hr = date.getHours();
+                                      return hr >= hourInt && hr < hourInt + 2;
+                                    } catch {
+                                      return false;
+                                    }
+                                  }).length;
+                                  
+                                  const baselineWeight = hourInt === 6 || hourInt === 18 ? 14 : hourInt === 8 || hourInt === 16 || hourInt === 20 ? 9 : 5;
+                                  return {
+                                    hour: h,
+                                    "Lượt quét": actualCount + (checkins.length > 3 ? 0 : baselineWeight),
+                                  };
+                                });
+                              })()}
+                              margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
+                            >
+                              <defs>
+                                <linearGradient id="dashboardTrafficGrad3" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#CCFF00" stopOpacity={0.2} />
+                                  <stop offset="95%" stopColor="#CCFF00" stopOpacity={0.0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff03" vertical={false} />
+                              <XAxis 
+                                dataKey="hour" 
+                                stroke="#4b5563" 
+                                fontSize={9} 
+                                tickLine={false} 
+                                axisLine={false}
+                              />
+                              <YAxis 
+                                stroke="#4b5563" 
+                                fontSize={10} 
+                                tickLine={false} 
+                                axisLine={false} 
+                              />
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: "#0d0e12",
+                                  border: "1px solid rgba(255,255,255,0.08)",
+                                  borderRadius: "0.75rem",
+                                  fontSize: "11px",
+                                  color: "#fff"
+                                }}
+                              />
+                              <Area 
+                                type="monotone" 
+                                dataKey="Lượt quét" 
+                                stroke="#CCFF00" 
+                                strokeWidth={1.5}
+                                fillOpacity={1} 
+                                fill="url(#dashboardTrafficGrad3)" 
+                              />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Column 2: Dashboard Overview & Practices Row (col-span 7) */}
+                    <div className="col-span-12 lg:col-span-7 flex flex-col gap-6">
+                      {/* Metric grids */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 shrink-0">
+                        {/* KPI 1 */}
+                        <div className="bg-[#11131a] border border-white/5 p-4 rounded-[1.2rem] flex flex-col justify-center items-center shadow-xl text-center hover:border-zinc-800 transition-colors">
+                          <span className="text-[10px] font-black text-[#5c67f2] uppercase tracking-wide mb-1 leading-none">Hóa đơn sắp hết hạn</span>
+                          <span className="text-3xl font-black italic text-white font-mono leading-none mt-1">{metric_invoice_expiring}</span>
+                          <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-1.5">Tổng số</span>
+                        </div>
                         
-                        <div className="absolute text-center">
-                          <div className="text-3xl font-black font-mono text-white tracking-widest leading-none">{stats?.totalMembers || 0}</div>
-                          <div className="text-[9px] font-black font-mono text-zinc-500 uppercase tracking-widest mt-1">{lang === 'vi' ? 'HỘI VIÊN' : (lang === 'zh' ? '会员' : 'MEMBERS')}</div>
+                        {/* KPI 2 */}
+                        <div className="bg-[#11131a] border border-white/5 p-4 rounded-[1.2rem] flex flex-col justify-center items-center shadow-xl text-center hover:border-zinc-800 transition-colors">
+                          <span className="text-[10px] font-black text-[#00b7f8] uppercase tracking-wide mb-1 leading-none">Hóa đơn hết hạn</span>
+                          <span className="text-3xl font-black italic text-white font-mono leading-none mt-1">{metric_invoice_expired}</span>
+                          <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-1.5">Tổng số</span>
+                        </div>
+
+                        {/* KPI 3 */}
+                        <div className="bg-[#11131a] border border-white/5 p-4 rounded-[1.2rem] flex flex-col justify-center items-center shadow-xl text-center hover:border-zinc-800 transition-colors">
+                          <span className="text-[10px] font-black text-[#f43f5e] uppercase tracking-wide mb-1 leading-none">Hóa đơn mới</span>
+                          <span className="text-3xl font-black italic text-white font-mono leading-none mt-1">{metric_invoice_new}</span>
+                          <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-1.5">Tổng số</span>
+                        </div>
+
+                        {/* KPI 4 */}
+                        <div className="bg-[#11131a] border border-white/0 mb-0 md:mb-1 hover:border-[#CCFF00]/45 border-white/5 p-4 rounded-[1.2rem] flex flex-col justify-center items-center shadow-xl text-center transition-colors">
+                          <span className="text-[10px] font-black text-[#CCFF00] uppercase tracking-wide mb-1 leading-none">Hội viên hôm nay</span>
+                          <span className="text-3xl font-black italic text-white font-mono leading-none mt-1">{metric_member_today}</span>
+                          <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-1.5">Tổng số</span>
                         </div>
                       </div>
 
-                      <div className="space-y-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2.5 h-2.5 rounded-full bg-[#CCFF00]" />
-                            <span className="text-[10px] font-black font-mono text-zinc-400 uppercase tracking-widest">{lang === 'vi' ? 'HOẠT ĐỘNG' : (lang === 'zh' ? '活跃' : 'ACTIVE')}</span>
-                          </div>
-                          <p className="text-lg font-black font-mono text-[#CCFF00] pl-4">{stats?.activeMembers || 0} ({stats?.totalMembers ? Math.round(((stats.activeMembers || 0) / stats.totalMembers) * 100) : 0}%)</p>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                            <span className="text-[10px] font-black font-mono text-zinc-400 uppercase tracking-widest">{lang === 'vi' ? 'HẾT HẠN' : (lang === 'zh' ? '已到期' : 'EXPIRED')}</span>
-                          </div>
-                          <p className="text-lg font-black font-mono text-rose-400 pl-4">{stats?.expiredMembers || 0} ({stats?.totalMembers ? Math.round(((stats.expiredMembers || 0) / stats.totalMembers) * 100) : 0}%)</p>
-                        </div>
-                      </div>
-
-                      {isStatusExpanded && (
-                        <motion.div 
-                          initial={{ opacity: 0, y: 15 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="mt-6 pt-6 border-t border-white/5 space-y-4"
-                        >
-                          <div className="flex items-center justify-between">
-                          <p className="text-[10px] font-black text-[#CCFF00] uppercase tracking-widest italic animate-pulse">{lang === 'vi' ? 'DANH SÁCH SẮP HẾT HẠN (30 NGÀY TỚI)' : (lang === 'zh' ? '即将过期会员名单 (30天内)' : 'MEMBERS EXPIRING SOON (NEXT 30 DAYS)')}</p>
-                          <span className="text-[9px] font-mono text-zinc-500 bg-white/5 px-2 py-0.5 rounded">
-                            {members.filter(m => {
-                              if (!m.expiryDate || m.status !== "Hoạt động") return false;
-                              const daysLeft = Math.ceil((new Date(m.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                              return daysLeft > 0 && daysLeft <= 30;
-                            }).length} {lang === 'vi' ? 'HỘI VIÊN' : (lang === 'zh' ? '会员' : 'MEMBERS')}
-                          </span>
+                      {/* Members practice log */}
+                      <div className="bg-[#11131a] border border-white/0 hover:border-zinc-850 bg-opacity-95 border-b border-white/5 rounded-[1.5rem] shadow-2xl flex flex-col overflow-hidden hover:border-zinc-800 transition-all duration-300">
+                        <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.005]">
+                          <h3 className="text-sm font-black uppercase text-white tracking-widest flex items-center gap-2">
+                            <Users className="w-4 h-4 text-[#CCFF00]" />
+                            Hội viên tập hôm nay
+                          </h3>
                         </div>
 
-                        <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1.5 custom-scrollbar">
-                          {(() => {
-                            const expiringSoon = members.filter(m => {
-                              if (!m.expiryDate || m.status !== "Hoạt động") return false;
-                              const daysLeft = Math.ceil((new Date(m.expiryDate || "").getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                              return daysLeft > 0 && daysLeft <= 30;
-                            });
-
-                            return expiringSoon.length > 0 ? (
-                              expiringSoon.map((member) => {
-                                const daysLeft = Math.ceil((new Date(member.expiryDate || "").getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                                return (
-                                  <div key={member.id} className="bg-zinc-950 p-3 rounded-xl border border-white/5 flex items-center justify-between text-xs">
-                                    <div>
-                                      <p className="font-black text-white">{member.fullName}</p>
-                                      <p className="text-[9px] font-mono text-zinc-500 mt-0.5">{member.phone} • {member.package}</p>
-                                    </div>
-                                    <div className="text-right">
-                                      <span className="text-rose-400 font-bold font-mono bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded text-[10px]">
-                                        {lang === 'vi' ? `Còn ${daysLeft} ngày` : (lang === 'zh' ? `剩余 ${daysLeft} 天` : `${daysLeft} days left`)}
-                                      </span>
-                                    </div>
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              <p className="text-[10px] text-zinc-700 italic text-center py-4">{lang === 'vi' ? 'Không có thành viên nào sắp hết hạn trong 30 ngày tới.' : (lang === 'zh' ? '未来 30 天内没有会员合约到期。' : 'No memberships are expiring in the next 30 days.')}</p>
-                            );
-                          })()}
-                        </div>
-                      </motion.div>
-                    )}
-                  </div>
-
-                  {/* Smart Bento Action deck */}
-                  <div className="bg-[#CCFF00] p-6 rounded-[2.5rem] text-zinc-950 shadow-2xl relative overflow-hidden group">
-                    <div className="absolute -bottom-8 -right-8 text-[7rem] font-black text-black/[0.03] italic pointer-events-none tracking-tight">CORE</div>
-                    
-                    <div className="relative z-10 space-y-4">
-                      <div>
-                        <span className="text-[9px] font-black font-mono text-black/50 uppercase tracking-[0.2em] border-b border-black/10 pb-1">{lang === 'vi' ? 'ĐIỀU HÀNH THÔNG MINH' : (lang === 'zh' ? '智能中控管理' : 'SMART COMMANDS')}</span>
-                        <h4 className="text-xl font-black uppercase text-black tracking-tight mt-2.5 leading-none italic">{lang === 'vi' ? 'QUẢN TRỊ TÁC VỤ NHANH' : (lang === 'zh' ? '紧急快捷指令' : 'QUICK OPERATIONS')}</h4>
-                        <p className="text-[10px] text-zinc-800 tracking-wide font-medium mt-1.5">{lang === 'vi' ? 'Các phím tắt khẩn cấp điều phối luồng vào phòng máy.' : (lang === 'zh' ? '核心高频操作一键直达，高效分流。' : 'High frequency shortcuts to coordinate desk workflows.')}</p>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-2.5 pt-2">
-                        {/* Add Member shortcut with high touch feedback */}
-                        {(user.role === "ADMIN" || user.role === "STAFF") && (
-                          <button
-                            onClick={openAddMemberModal}
-                            className="w-full bg-black text-[#CCFF00] font-black py-3.5 rounded-2xl hover:bg-zinc-900 duration-150 text-[10px] uppercase tracking-widest flex items-center justify-center gap-2.5 shadow-xl active:scale-95 transition-transform"
-                          >
-                            <UserPlusIcon className="w-4 h-4" /> {lang === 'vi' ? 'THÊM HỘI VIÊN MỚI' : (lang === 'zh' ? '登记新会员' : 'ADD NEW MEMBER')}
-                          </button>
-                        )}
-
-                        {/* Quick scanner camera simulator */}
-                        <button
-                          onClick={() => setIsCheckinModalOpen(true)}
-                          className="w-full bg-black/5 border border-black/15 text-black font-black py-3.5 rounded-2xl hover:bg-black hover:text-[#CCFF00] duration-150 text-[10px] uppercase tracking-widest flex items-center justify-center gap-2.5 active:scale-95 transition-transform"
-                        >
-                          <Activity className="w-4 h-4" /> {lang === 'vi' ? 'QUÉT THẺ TRUY CẬP (SIM)' : (lang === 'zh' ? '模拟出入刷卡' : 'SIMULATE ACCES CARD')}
-                        </button>
-
-                        {/* Treasury ledger tab shortcut pivot */}
-                        <button
-                          onClick={() => setActiveTab("treasury")}
-                          className="w-full bg-black/5 border border-black/15 text-black font-black py-3.5 rounded-2xl hover:bg-black hover:text-[#CCFF00] duration-150 text-[10px] uppercase tracking-widest flex items-center justify-center gap-2.5 active:scale-95 transition-transform"
-                        >
-                          <Wallet className="w-4 h-4" /> {lang === 'vi' ? 'XEM SỔ THU CHI GIAO DỊCH' : (lang === 'zh' ? '查看收支分类账' : 'TREASURY REVENUE LEDGER')}
-                        </button>
-
-                        {/* Gym packages pivot */}
-                        <button
-                          onClick={() => setActiveTab("packages")}
-                          className="w-full bg-black/5 border border-black/15 text-black font-black py-3.5 rounded-2xl hover:bg-black hover:text-[#CCFF00] duration-150 text-[10px] uppercase tracking-widest flex items-center justify-center gap-2.5 active:scale-95 transition-transform"
-                        >
-                          <Box className="w-4 h-4" /> {lang === 'vi' ? 'GÓI TẬP & CƠ CẤU PHÍ' : (lang === 'zh' ? '配置健身房卡种' : 'PACKAGES & COMMERCE RATES')}
-                        </button>
-                      </div>          <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2.5 h-2.5 rounded-full bg-[#CCFF00]" />
-                            <span className="text-[10px] font-black font-mono text-zinc-400 uppercase tracking-widest">HOẠT ĐỘNG</span>
-                          </div>
-                          <p className="text-lg font-black font-mono text-[#CCFF00] pl-4">{stats?.activeMembers || 0} ({stats?.totalMembers ? Math.round(((stats.activeMembers || 0) / stats.totalMembers) * 100) : 0}%)</p>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                            <span className="text-[10px] font-black font-mono text-zinc-400 uppercase tracking-widest">HẾT HẠN</span>
-                          </div>
-                          <p className="text-lg font-black font-mono text-rose-400 pl-4">{stats?.expiredMembers || 0} ({stats?.totalMembers ? Math.round(((stats.expiredMembers || 0) / stats.totalMembers) * 100) : 0}%)</p>
+                        <div className="overflow-x-auto custom-scrollbar">
+                          <table className="w-full text-left min-w-[550px] border-collapse">
+                            <thead>
+                              <tr className="text-[10.5px] font-black font-mono text-zinc-500 uppercase border-b border-white/5 bg-white/[0.005] tracking-widest">
+                                <th className="px-6 py-4 text-center">STT</th>
+                                <th className="px-6 py-4">Hình ảnh</th>
+                                <th className="px-6 py-4">Khách hàng</th>
+                                <th className="px-6 py-4">Điện thoại</th>
+                                <th className="px-6 py-4">Dịch vụ</th>
+                                <th className="px-6 py-4">Ngày</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                              {displayCheckinList.map((item, idx) => (
+                                <tr key={item.id} className="hover:bg-white/[0.015] duration-150 transition-colors">
+                                  <td className="px-6 py-3 text-center font-mono text-xs font-bold text-zinc-500">{idx + 1}</td>
+                                  <td className="px-6 py-3">
+                                    {item.avatar ? (
+                                      <img 
+                                        src={item.avatar} 
+                                        className="w-9 h-9 rounded-full object-cover border border-white/10 shadow shadow-black" 
+                                        referrerPolicy="no-referrer"
+                                      />
+                                    ) : (
+                                      <div className="w-9 h-9 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center font-black text-xs text-[#CCFF00]">
+                                        {item.fullName.split(" ").pop()?.charAt(0) || "U"}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="px-6 py-3 font-black text-white italic text-xs uppercase tracking-tight">{item.fullName}</td>
+                                  <td className="px-6 py-3 font-mono text-zinc-400 text-xs">{item.phone}</td>
+                                  <td className="px-6 py-3">
+                                    <span className="text-[10px] text-zinc-350 font-bold bg-white/5 border border-white/5 px-2 py-1 rounded">
+                                      {item.package}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-3 font-mono text-xs text-zinc-400 font-bold">{item.timeStr}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
                     </div>
-
-                    {isStatusExpanded && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-6 pt-6 border-t border-white/5 space-y-4"
-                      >
-                        <div className="flex items-center justify-between">
-                          <p className="text-[10px] font-black text-[#CCFF00] uppercase tracking-widest italic animate-pulse">DANH SÁCH SẮP HẾT HẠN (30 NGÀY TỚI)</p>
-                          <span className="text-[9px] font-mono text-zinc-500 bg-white/5 px-2 py-0.5 rounded">
-                            {members.filter(m => {
-                              if (!m.expiryDate || m.status !== "Hoạt động") return false;
-                              const daysLeft = Math.ceil((new Date(m.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                              return daysLeft > 0 && daysLeft <= 30;
-                            }).length} HỘI VIÊN
-                          </span>
-                        </div>
-
-                        <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1.5 custom-scrollbar">
-                          {(() => {
-                            const expiringSoon = members.filter(m => {
-                              if (!m.expiryDate || m.status !== "Hoạt động") return false;
-                              const daysLeft = Math.ceil((new Date(m.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                              return daysLeft > 0 && daysLeft <= 30;
-                            });
-
-                            return expiringSoon.length > 0 ? (
-                              expiringSoon.map((member) => {
-                                const daysLeft = Math.ceil((new Date(member.expiryDate || "").getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                                return (
-                                  <div key={member.id} className="bg-zinc-950 p-3 rounded-xl border border-white/5 flex items-center justify-between text-xs">
-                                    <div>
-                                      <p className="font-black text-white">{member.fullName}</p>
-                                      <p className="text-[9px] font-mono text-zinc-500 mt-0.5">{member.phone} • {member.package}</p>
-                                    </div>
-                                    <div className="text-right">
-                                      <span className="text-rose-400 font-bold font-mono bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded text-[10px]">
-                                        Còn {daysLeft} ngày
-                                      </span>
-                                    </div>
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              <p className="text-[10px] text-zinc-700 italic text-center py-4">Không có thành viên nào sắp hết hạn trong 30 ngày tới.</p>
-                            );
-                          })()}
-                        </div>
-                      </motion.div>
-                    )}
                   </div>
-
-                  {/* Smart Bento Action deck */}
-                  <div className="bg-[#CCFF00] p-6 rounded-[2.5rem] text-zinc-950 shadow-2xl relative overflow-hidden group">
-                    <div className="absolute -bottom-8 -right-8 text-[7rem] font-black text-black/[0.03] italic pointer-events-none tracking-tight">CORE</div>
-                    
-                    <div className="relative z-10 space-y-4">
-                      <div>
-                        <span className="text-[9px] font-black font-mono text-black/50 uppercase tracking-[0.2em] border-b border-black/10 pb-1">ĐIỀU HÀNH THÔNG MINH</span>
-                        <h4 className="text-xl font-black uppercase text-black tracking-tight mt-2.5 leading-none italic">QUẢN TRỊ TÁC VỤ NHANH</h4>
-                        <p className="text-[10px] text-zinc-800 tracking-wide font-medium mt-1.5">Các phím tắt khẩn cấp điều phối luồng vào phòng máy.</p>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-2.5 pt-2">
-                        {/* Add Member shortcut with high touch feedback */}
-                        {(user.role === "ADMIN" || user.role === "STAFF") && (
-                          <button
-                            onClick={openAddMemberModal}
-                            className="w-full bg-black text-[#CCFF00] font-black py-3.5 rounded-2xl hover:bg-zinc-900 duration-150 text-[10px] uppercase tracking-widest flex items-center justify-center gap-2.5 shadow-xl active:scale-95 transition-transform"
-                          >
-                            <UserPlusIcon className="w-4 h-4" /> THÊM HỘI VIÊN MỚI
-                          </button>
-                        )}
-
-                        {/* Quick scanner camera simulator */}
-                        <button
-                          onClick={() => setIsCheckinModalOpen(true)}
-                          className="w-full bg-black/5 border border-black/15 text-black font-black py-3.5 rounded-2xl hover:bg-black hover:text-[#CCFF00] duration-150 text-[10px] uppercase tracking-widest flex items-center justify-center gap-2.5 active:scale-95 transition-transform"
-                        >
-                          <Activity className="w-4 h-4" /> QUÉT THẺ TRUY CẬP (SIM)
-                        </button>
-
-                        {/* Treasury ledger tab shortcut pivot */}
-                        <button
-                          onClick={() => setActiveTab("treasury")}
-                          className="w-full bg-black/5 border border-black/15 text-black font-black py-3.5 rounded-2xl hover:bg-black hover:text-[#CCFF00] duration-150 text-[10px] uppercase tracking-widest flex items-center justify-center gap-2.5 active:scale-95 transition-transform"
-                        >
-                          <Wallet className="w-4 h-4" /> XEM SỔ THU CHI GIAO DỊCH
-                        </button>
-
-                        {/* Gym packages pivot */}
-                        <button
-                          onClick={() => setActiveTab("packages")}
-                          className="w-full bg-black/5 border border-black/15 text-black font-black py-3.5 rounded-2xl hover:bg-black hover:text-[#CCFF00] duration-150 text-[10px] uppercase tracking-widest flex items-center justify-center gap-2.5 active:scale-95 transition-transform"
-                        >
-                          <Box className="w-4 h-4" /> GÓI TẬP & CƠ CẤU PHÍ
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                );
+              })()}
             </div>
+
+
+
+
+
+
+
+
           ) : activeTab === "memberAccounts" ? (
             <div className="space-y-6 pb-4 h-full flex flex-col overflow-hidden relative z-10 px-5 md:px-5 animate-fadeIn">
               {/* Dynamic KPI Metrics Grid (World-class standard) */}
